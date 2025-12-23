@@ -1,0 +1,24 @@
+build/
+install/
+log/
+*.pyc
+__pycache__/
+.vscode/
+.idea/
+# experiment results
+evaluation_results/
+frames_*.gv
+frames_*.pdf
+
+# ROS2
+build/
+install/
+log/
+
+# Python
+*.pyc
+__pycache__/
+
+# Editor
+.vscode/
+.idea/
