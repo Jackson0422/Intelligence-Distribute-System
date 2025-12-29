@@ -29,6 +29,8 @@ setup(
             'pose_eval = localization_evaluation.pose_eval_node:main',
             'track_multibot = localization_evaluation.track_multibot:main',
             'pose_eval_multibot = localization_evaluation.pose_eval_multibot:main',
+            'decentralized_coloc_agent = localization_evaluation.decentralized_coloc_agent:main',
+            'pose_eval_coloc = localization_evaluation.pose_eval_coloc:main',
         ],
     },
 )
