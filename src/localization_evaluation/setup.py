@@ -15,6 +15,8 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
         (os.path.join('share', package_name, 'param'), glob('param/*.yaml')),
         (os.path.join('share', package_name, 'models', 'tb3_1'), glob('models/tb3_1/*.sdf')),
+        (os.path.join('share', package_name, 'models', 'tb3_2'), glob('models/tb3_2/*.sdf')),
+        (os.path.join('share', package_name, 'models', 'tb3_3'), glob('models/tb3_3/*.sdf')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

@@ -88,8 +88,8 @@ class TurtleBot3WorldMap:
     """
     
     # 机器人半径（TurtleBot3 Burger，略大于实际0.09m以增加安全裕度）
-    ROBOT_RADIUS = 0.12
-    
+    ROBOT_RADIUS = 0.22
+
     def __init__(self):
         # 地图边界
         self.x_min = -2.5
@@ -107,7 +107,7 @@ class TurtleBot3WorldMap:
             (1.1, -1.1), (1.1, 0), (1.1, 1.1)
         ]
         for x, y in cylinder_positions:
-            self.obstacles.append(CircleObstacle(x, y, 0.15))
+            self.obstacles.append(CircleObstacle(x, y, 0.18))
         
         # 5个六边形障碍物（用圆形近似）
         hexagon_obstacles = [

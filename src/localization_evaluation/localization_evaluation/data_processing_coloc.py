@@ -28,17 +28,17 @@ from datetime import datetime
 class ColocDataProcessor:
     """Process and visualize collaborative localization evaluation data."""
     
-    def __init__(self, data_dir: str = None):
-        """Initialize with data directory."""
+    def __init__(self, data_dir: str = None, num_robots: int = 2):
+        """Initialize with data directory and number of robots."""
         if data_dir is None:
             data_dir = os.path.expanduser('~/ids_roswk/evaluation_results/multibot/coloc')
         self.data_dir = data_dir
+        self.num_robots = num_robots
         
-        # TB3_0 data
-        self.tb3_0_data = None
-        
-        # TB3_1 data
-        self.tb3_1_data = None
+        # Robot data dictionary
+        self.robot_data = {}
+        self.robot_ids = [f'tb3_{i}' if i > 0 else 'tb3_0' 
+                          for i in range(num_robots)]
         
         self.timestamp_suffix = None
         
@@ -57,7 +57,7 @@ class ColocDataProcessor:
         return True
     
     def load_data(self, timestamp_suffix: str = None) -> bool:
-        """Load collaborative localization evaluation data for both robots."""
+        """Load collaborative localization evaluation data for all robots."""
         if timestamp_suffix:
             self.timestamp_suffix = timestamp_suffix
         elif self.timestamp_suffix is None:
@@ -65,21 +65,17 @@ class ColocDataProcessor:
                 return False
         
         try:
-            # Load CSV files
-            tb3_0_file = os.path.join(self.data_dir, f'tb3_0_coloc_eval_{self.timestamp_suffix}.csv')
-            tb3_1_file = os.path.join(self.data_dir, f'tb3_1_coloc_eval_{self.timestamp_suffix}.csv')
-            
-            self.tb3_0_data = pd.read_csv(tb3_0_file)
-            self.tb3_1_data = pd.read_csv(tb3_1_file)
+            # Load CSV files for all robots
+            for robot_id in self.robot_ids:
+                file_path = os.path.join(self.data_dir, f'{robot_id}_coloc_eval_{self.timestamp_suffix}.csv')
+                self.robot_data[robot_id] = pd.read_csv(file_path)
+                print(f"Loaded {robot_id.upper()}: {len(self.robot_data[robot_id])} samples")
             
             # Convert timestamp to relative time (starting from 0)
-            start_time = min(self.tb3_0_data['timestamp'].min(), self.tb3_1_data['timestamp'].min())
+            start_time = min([data['timestamp'].min() for data in self.robot_data.values()])
             
-            self.tb3_0_data['time'] = self.tb3_0_data['timestamp'] - start_time
-            self.tb3_1_data['time'] = self.tb3_1_data['timestamp'] - start_time
-            
-            print(f"Loaded TB3_0: {len(self.tb3_0_data)} samples")
-            print(f"Loaded TB3_1: {len(self.tb3_1_data)} samples")
+            for robot_id in self.robot_ids:
+                self.robot_data[robot_id]['time'] = self.robot_data[robot_id]['timestamp'] - start_time
             
             # Print statistics
             self._print_statistics()
@@ -94,13 +90,14 @@ class ColocDataProcessor:
             return False
     
     def _print_statistics(self):
-        """Print error statistics for both robots."""
+        """Print error statistics for all robots."""
         print("\n" + "=" * 80)
         print("Error Statistics")
         print("=" * 80)
         
-        for robot_name, data in [('TB3_0', self.tb3_0_data), ('TB3_1', self.tb3_1_data)]:
-            print(f"\n{robot_name}:")
+        for robot_id in self.robot_ids:
+            data = self.robot_data[robot_id]
+            print(f"\n{robot_id.upper()}:")
             print(f"  Position Error (m):")
             print(f"    RMSE: {data['position_error'].pow(2).mean()**0.5:.4f}")
             print(f"    Mean: {data['position_error'].mean():.4f}")
@@ -111,13 +108,22 @@ class ColocDataProcessor:
             print(f"    Max:  {abs(data['yaw_error_deg']).max():.2f}")
     
     def plot_trajectory_comparison(self):
-        """Plot trajectory comparison for both robots."""
-        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+        """Plot trajectory comparison for all robots."""
+        ncols = min(self.num_robots, 3)  # Max 3 columns
+        nrows = (self.num_robots + ncols - 1) // ncols  # Calculate needed rows
         
-        for idx, (robot_name, data, ax) in enumerate([
-            ('TB3_0', self.tb3_0_data, axes[0]),
-            ('TB3_1', self.tb3_1_data, axes[1])
-        ]):
+        fig, axes = plt.subplots(nrows, ncols, figsize=(6*ncols, 6*nrows))
+        if nrows == 1 and ncols == 1:
+            axes = np.array([axes])
+        elif nrows == 1 or ncols == 1:
+            axes = axes.flatten()
+        else:
+            axes = axes.flatten()
+        
+        for idx, robot_id in enumerate(self.robot_ids):
+            data = self.robot_data[robot_id]
+            ax = axes[idx]
+            robot_name = robot_id.upper()
             # Plot ground truth
             ax.plot(data['gt_x'], data['gt_y'], 
                    'b-', linewidth=2, label='Ground Truth', alpha=0.7)
@@ -143,13 +149,14 @@ class ColocDataProcessor:
         return fig
     
     def plot_position_error_comparison(self):
-        """Plot position error over time for both robots."""
+        """Plot position error over time for all robots."""
         fig, ax = plt.subplots(figsize=(14, 6))
         
-        ax.plot(self.tb3_0_data['time'], self.tb3_0_data['position_error'],
-               'b-', linewidth=1.5, label='TB3_0', alpha=0.7)
-        ax.plot(self.tb3_1_data['time'], self.tb3_1_data['position_error'],
-               'r-', linewidth=1.5, label='TB3_1', alpha=0.7)
+        colors = ['b', 'r', 'g', 'orange']  # Colors for up to 4 robots
+        for idx, robot_id in enumerate(self.robot_ids):
+            data = self.robot_data[robot_id]
+            ax.plot(data['time'], data['position_error'],
+                   f'{colors[idx]}-', linewidth=1.5, label=robot_id.upper(), alpha=0.7)
         
         ax.set_xlabel('Time (s)', fontsize=12)
         ax.set_ylabel('Position Error (m)', fontsize=12)
@@ -161,13 +168,14 @@ class ColocDataProcessor:
         return fig
     
     def plot_yaw_error_comparison(self):
-        """Plot yaw error over time for both robots."""
+        """Plot yaw error over time for all robots."""
         fig, ax = plt.subplots(figsize=(14, 6))
         
-        ax.plot(self.tb3_0_data['time'], self.tb3_0_data['yaw_error_deg'],
-               'b-', linewidth=1.5, label='TB3_0', alpha=0.7)
-        ax.plot(self.tb3_1_data['time'], self.tb3_1_data['yaw_error_deg'],
-               'r-', linewidth=1.5, label='TB3_1', alpha=0.7)
+        colors = ['b', 'r', 'g', 'orange']  # Colors for up to 4 robots
+        for idx, robot_id in enumerate(self.robot_ids):
+            data = self.robot_data[robot_id]
+            ax.plot(data['time'], data['yaw_error_deg'],
+                   f'{colors[idx]}-', linewidth=1.5, label=robot_id.upper(), alpha=0.7)
         
         ax.set_xlabel('Time (s)', fontsize=12)
         ax.set_ylabel('Yaw Error (deg)', fontsize=12)
@@ -183,39 +191,33 @@ class ColocDataProcessor:
         """Plot error statistics comparison as bar chart."""
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
         
-        # Calculate statistics
-        stats_data = {
-            'TB3_0': {
-                'pos_rmse': self.tb3_0_data['position_error'].pow(2).mean()**0.5,
-                'pos_mean': self.tb3_0_data['position_error'].mean(),
-                'pos_max': self.tb3_0_data['position_error'].max(),
-                'yaw_rmse': self.tb3_0_data['yaw_error_deg'].pow(2).mean()**0.5,
-                'yaw_mean': abs(self.tb3_0_data['yaw_error_deg']).mean(),
-                'yaw_max': abs(self.tb3_0_data['yaw_error_deg']).max()
-            },
-            'TB3_1': {
-                'pos_rmse': self.tb3_1_data['position_error'].pow(2).mean()**0.5,
-                'pos_mean': self.tb3_1_data['position_error'].mean(),
-                'pos_max': self.tb3_1_data['position_error'].max(),
-                'yaw_rmse': self.tb3_1_data['yaw_error_deg'].pow(2).mean()**0.5,
-                'yaw_mean': abs(self.tb3_1_data['yaw_error_deg']).mean(),
-                'yaw_max': abs(self.tb3_1_data['yaw_error_deg']).max()
+        # Calculate statistics for all robots
+        stats_data = {}
+        for robot_id in self.robot_ids:
+            data = self.robot_data[robot_id]
+            stats_data[robot_id.upper()] = {
+                'pos_rmse': data['position_error'].pow(2).mean()**0.5,
+                'pos_mean': data['position_error'].mean(),
+                'pos_max': data['position_error'].max(),
+                'yaw_rmse': data['yaw_error_deg'].pow(2).mean()**0.5,
+                'yaw_mean': abs(data['yaw_error_deg']).mean(),
+                'yaw_max': abs(data['yaw_error_deg']).max()
             }
-        }
         
         # Position error statistics
-        x = np.arange(3)
-        width = 0.35
+        x = np.arange(3)  # RMSE, Mean, Max
+        width = 0.8 / self.num_robots  # Dynamic width based on number of robots
+        colors = ['blue', 'red', 'green', 'orange']
         
-        pos_tb3_0 = [stats_data['TB3_0']['pos_rmse'], 
-                     stats_data['TB3_0']['pos_mean'],
-                     stats_data['TB3_0']['pos_max']]
-        pos_tb3_1 = [stats_data['TB3_1']['pos_rmse'],
-                     stats_data['TB3_1']['pos_mean'],
-                     stats_data['TB3_1']['pos_max']]
+        for idx, robot_id in enumerate(self.robot_ids):
+            robot_name = robot_id.upper()
+            pos_values = [stats_data[robot_name]['pos_rmse'], 
+                         stats_data[robot_name]['pos_mean'],
+                         stats_data[robot_name]['pos_max']]
+            offset = width * (idx - self.num_robots/2 + 0.5)
+            axes[0].bar(x + offset, pos_values, width, 
+                       label=robot_name, alpha=0.8, color=colors[idx])
         
-        axes[0].bar(x - width/2, pos_tb3_0, width, label='TB3_0', alpha=0.8)
-        axes[0].bar(x + width/2, pos_tb3_1, width, label='TB3_1', alpha=0.8)
         axes[0].set_ylabel('Position Error (m)', fontsize=12)
         axes[0].set_title('Position Error Statistics', fontsize=14, fontweight='bold')
         axes[0].set_xticks(x)
@@ -224,15 +226,14 @@ class ColocDataProcessor:
         axes[0].grid(True, alpha=0.3, axis='y')
         
         # Yaw error statistics
-        yaw_tb3_0 = [stats_data['TB3_0']['yaw_rmse'],
-                     stats_data['TB3_0']['yaw_mean'],
-                     stats_data['TB3_0']['yaw_max']]
-        yaw_tb3_1 = [stats_data['TB3_1']['yaw_rmse'],
-                     stats_data['TB3_1']['yaw_mean'],
-                     stats_data['TB3_1']['yaw_max']]
-        
-        axes[1].bar(x - width/2, yaw_tb3_0, width, label='TB3_0', alpha=0.8)
-        axes[1].bar(x + width/2, yaw_tb3_1, width, label='TB3_1', alpha=0.8)
+        for idx, robot_id in enumerate(self.robot_ids):
+            robot_name = robot_id.upper()
+            yaw_values = [stats_data[robot_name]['yaw_rmse'],
+                         stats_data[robot_name]['yaw_mean'],
+                         stats_data[robot_name]['yaw_max']]
+            offset = width * (idx - self.num_robots/2 + 0.5)
+            axes[1].bar(x + offset, yaw_values, width,
+                       label=robot_name, alpha=0.8, color=colors[idx])
         axes[1].set_ylabel('Yaw Error (deg)', fontsize=12)
         axes[1].set_title('Yaw Error Statistics', fontsize=14, fontweight='bold')
         axes[1].set_xticks(x)
@@ -247,9 +248,13 @@ class ColocDataProcessor:
         """Plot error distribution histograms."""
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))
         
+        colors = ['blue', 'red', 'green', 'orange']
+        
         # Position error distribution
-        axes[0, 0].hist(self.tb3_0_data['position_error'], bins=50, alpha=0.7, label='TB3_0', color='blue')
-        axes[0, 0].hist(self.tb3_1_data['position_error'], bins=50, alpha=0.7, label='TB3_1', color='red')
+        for idx, robot_id in enumerate(self.robot_ids):
+            data = self.robot_data[robot_id]
+            axes[0, 0].hist(data['position_error'], bins=50, alpha=0.7, 
+                           label=robot_id.upper(), color=colors[idx])
         axes[0, 0].set_xlabel('Position Error (m)', fontsize=11)
         axes[0, 0].set_ylabel('Frequency', fontsize=11)
         axes[0, 0].set_title('Position Error Distribution', fontsize=12, fontweight='bold')
@@ -257,8 +262,10 @@ class ColocDataProcessor:
         axes[0, 0].grid(True, alpha=0.3)
         
         # Yaw error distribution
-        axes[0, 1].hist(self.tb3_0_data['yaw_error_deg'], bins=50, alpha=0.7, label='TB3_0', color='blue')
-        axes[0, 1].hist(self.tb3_1_data['yaw_error_deg'], bins=50, alpha=0.7, label='TB3_1', color='red')
+        for idx, robot_id in enumerate(self.robot_ids):
+            data = self.robot_data[robot_id]
+            axes[0, 1].hist(data['yaw_error_deg'], bins=50, alpha=0.7,
+                           label=robot_id.upper(), color=colors[idx])
         axes[0, 1].set_xlabel('Yaw Error (deg)', fontsize=11)
         axes[0, 1].set_ylabel('Frequency', fontsize=11)
         axes[0, 1].set_title('Yaw Error Distribution', fontsize=12, fontweight='bold')
@@ -266,8 +273,10 @@ class ColocDataProcessor:
         axes[0, 1].grid(True, alpha=0.3)
         
         # X error distribution
-        axes[1, 0].hist(self.tb3_0_data['x_error'], bins=50, alpha=0.7, label='TB3_0', color='blue')
-        axes[1, 0].hist(self.tb3_1_data['x_error'], bins=50, alpha=0.7, label='TB3_1', color='red')
+        for idx, robot_id in enumerate(self.robot_ids):
+            data = self.robot_data[robot_id]
+            axes[1, 0].hist(data['x_error'], bins=50, alpha=0.7,
+                           label=robot_id.upper(), color=colors[idx])
         axes[1, 0].set_xlabel('X Error (m)', fontsize=11)
         axes[1, 0].set_ylabel('Frequency', fontsize=11)
         axes[1, 0].set_title('X Error Distribution', fontsize=12, fontweight='bold')
@@ -275,8 +284,10 @@ class ColocDataProcessor:
         axes[1, 0].grid(True, alpha=0.3)
         
         # Y error distribution
-        axes[1, 1].hist(self.tb3_0_data['y_error'], bins=50, alpha=0.7, label='TB3_0', color='blue')
-        axes[1, 1].hist(self.tb3_1_data['y_error'], bins=50, alpha=0.7, label='TB3_1', color='red')
+        for idx, robot_id in enumerate(self.robot_ids):
+            data = self.robot_data[robot_id]
+            axes[1, 1].hist(data['y_error'], bins=50, alpha=0.7,
+                           label=robot_id.upper(), color=colors[idx])
         axes[1, 1].set_xlabel('Y Error (m)', fontsize=11)
         axes[1, 1].set_ylabel('Frequency', fontsize=11)
         axes[1, 1].set_title('Y Error Distribution', fontsize=12, fontweight='bold')
@@ -288,12 +299,21 @@ class ColocDataProcessor:
     
     def plot_xy_error_scatter(self):
         """Plot XY error scatter plot."""
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+        ncols = min(self.num_robots, 3)
+        nrows = (self.num_robots + ncols - 1) // ncols
         
-        for idx, (robot_name, data, ax) in enumerate([
-            ('TB3_0', self.tb3_0_data, axes[0]),
-            ('TB3_1', self.tb3_1_data, axes[1])
-        ]):
+        fig, axes = plt.subplots(nrows, ncols, figsize=(7*ncols, 6*nrows))
+        if nrows == 1 and ncols == 1:
+            axes = np.array([axes])
+        elif nrows == 1 or ncols == 1:
+            axes = axes.flatten()
+        else:
+            axes = axes.flatten()
+        
+        for idx, robot_id in enumerate(self.robot_ids):
+            data = self.robot_data[robot_id]
+            ax = axes[idx]
+            robot_name = robot_id.upper()
             scatter = ax.scatter(data['x_error'], data['y_error'],
                                c=data['time'], cmap='viridis',
                                s=20, alpha=0.6)
@@ -352,16 +372,18 @@ def main():
                         help='Specific timestamp suffix (e.g., 20251226_182202)')
     parser.add_argument('--output-dir', type=str, default=None,
                         help='Output directory for plots (default: <data-dir>/plots)')
+    parser.add_argument('--num-robots', type=int, default=3, choices=[2, 3, 4],
+                        help='Number of robots (2-4, default: 3)')
     parser.add_argument('--show', action='store_true',
                         help='Show plots interactively instead of saving')
     
     args = parser.parse_args()
     
     print("=" * 80)
-    print("Collaborative Localization Evaluation - Data Processor")
+    print(f"Collaborative Localization Evaluation - Data Processor ({args.num_robots} Robots)")
     print("=" * 80)
     
-    processor = ColocDataProcessor(args.data_dir)
+    processor = ColocDataProcessor(args.data_dir, args.num_robots)
     
     if not processor.load_data(args.timestamp):
         print("\nError: Failed to load data. Please check the data directory and files.")

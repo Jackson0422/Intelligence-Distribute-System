@@ -31,51 +31,72 @@ class PoseEvalColoc(Node):
     def __init__(self):
         super().__init__('pose_eval_coloc')
         
+        # 声明参数：机器人数量（默认2，支持2-4）
+        self.declare_parameter('num_robots', 2)
+        self.num_robots = self.get_parameter('num_robots').value
+        
+        # 验证参数范围
+        if self.num_robots < 2 or self.num_robots > 4:
+            self.get_logger().error(f'num_robots参数必须在2-4之间，当前值: {self.num_robots}')
+            self.num_robots = 2  # 使用默认值
+        
         # 创建保存目录
         self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.result_dir = os.path.expanduser('~/ids_roswk/evaluation_results/multibot/coloc')
         os.makedirs(self.result_dir, exist_ok=True)
         
         self.get_logger().info('=' * 80)
-        self.get_logger().info('协同定位性能评估节点已启动')
+        self.get_logger().info(f'协同定位性能评估节点已启动 (机器人数量: {self.num_robots})')
         self.get_logger().info(f'结果保存到: {self.result_dir}')
         self.get_logger().info('=' * 80)
         
-        # 机器人0的数据
-        self.tb3_0_data = {
-            'odom': None,
-            'coloc_pose': None,
-            'last_coloc_pose': None,  # 用于检测coloc_pose是否真正更新
-            'errors': [],
-            'count': 0,
-            'skipped_count': 0  # 跳过的重复样本计数
-        }
+        # 机器人ID列表
+        self.robot_ids = ['tb3_0', 'tb3_1', 'tb3_2', 'tb3_3'][:self.num_robots]
         
-        # 机器人1的数据
-        self.tb3_1_data = {
-            'odom': None,
-            'coloc_pose': None,
-            'last_coloc_pose': None,  # 用于检测coloc_pose是否真正更新
-            'errors': [],
-            'count': 0,
-            'skipped_count': 0  # 跳过的重复样本计数
-        }
+        # 动态创建机器人数据字典
+        self.robot_data = {}
+        for robot_id in self.robot_ids:
+            self.robot_data[robot_id] = {
+                'odom': None,
+                'coloc_pose': None,
+                'last_coloc_pose': None,  # 用于检测coloc_pose是否真正更新
+                'errors': [],
+                'count': 0,
+                'skipped_count': 0  # 跳过的重复样本计数
+            }
         
-        # 订阅ground truth (odom)
-        self.odom_sub_0 = self.create_subscription(
-            Odometry, '/odom', self.odom_callback_0, 10
-        )
-        self.odom_sub_1 = self.create_subscription(
-            Odometry, '/tb3_1/odom', self.odom_callback_1, 10
-        )
+        # 动态创建订阅者
+        self.odom_subs = []
+        self.coloc_subs = []
         
-        # 订阅协同定位位姿
-        self.coloc_sub_0 = self.create_subscription(
-            PoseWithCovarianceStamped, '/coloc_pose', self.coloc_callback_0, 10
-        )
-        self.coloc_sub_1 = self.create_subscription(
-            PoseWithCovarianceStamped, '/tb3_1/coloc_pose', self.coloc_callback_1, 10
-        )
+        for robot_id in self.robot_ids:
+            # 订阅ground truth (odom)
+            if robot_id == 'tb3_0':
+                odom_topic = '/odom'
+                coloc_topic = '/coloc_pose'
+            else:
+                odom_topic = f'/{robot_id}/odom'
+                coloc_topic = f'/{robot_id}/coloc_pose'
+            
+            # 使用lambda创建回调，需要使用默认参数捕获robot_id
+            odom_sub = self.create_subscription(
+                Odometry,
+                odom_topic,
+                lambda msg, rid=robot_id: self.odom_callback(msg, rid),
+                10
+            )
+            self.odom_subs.append(odom_sub)
+            
+            # 订阅协同定位位姿
+            coloc_sub = self.create_subscription(
+                PoseWithCovarianceStamped,
+                coloc_topic,
+                lambda msg, rid=robot_id: self.coloc_callback(msg, rid),
+                10
+            )
+            self.coloc_subs.append(coloc_sub)
+            
+            self.get_logger().info(f'  订阅: {odom_topic} 和 {coloc_topic}')
         
         # 定时打印统计信息 (5秒)
         self.timer = self.create_timer(5.0, self.print_statistics)
@@ -102,12 +123,15 @@ class PoseEvalColoc(Node):
         
         self.tf_check_count += 1
         
+        # 动态构建需要检查的TF列表
         # 注意：检查的TF方向要和pose_in_frame()里实际使用的一致
         # pose_in_frame()里是lookup_transform(target='odom', source='map')
-        required_transforms = [
-            ('odom', 'map'),           # tb3_0: 从map到odom
-            ('tb3_1/odom', 'map'),     # tb3_1: 从map到tb3_1/odom
-        ]
+        required_transforms = []
+        for robot_id in self.robot_ids:
+            if robot_id == 'tb3_0':
+                required_transforms.append(('odom', 'map'))
+            else:
+                required_transforms.append((f'{robot_id}/odom', 'map'))
         
         all_ready = True
         for target, source in required_transforms:
@@ -178,37 +202,22 @@ class PoseEvalColoc(Node):
             self.get_logger().error(f'TF查询失败: {target_frame} <- {src_frame}, 错误: {e}')
             return None
     
-    def odom_callback_0(self, msg):
-        """机器人0的里程计回调"""
-        self.tb3_0_data['odom'] = msg
-        self.calculate_error('tb3_0')
+    def odom_callback(self, msg, robot_id):
+        """通用里程计回调"""
+        self.robot_data[robot_id]['odom'] = msg
+        self.calculate_error(robot_id)
     
-    def odom_callback_1(self, msg):
-        """机器人1的里程计回调"""
-        self.tb3_1_data['odom'] = msg
-        self.calculate_error('tb3_1')
-    
-    def coloc_callback_0(self, msg):
-        """机器人0的协同定位位姿回调"""
+    def coloc_callback(self, msg, robot_id):
+        """通用协同定位位姿回调"""
+        data = self.robot_data[robot_id]
         # 检测coloc_pose是否真正更新
-        if self._is_pose_updated(self.tb3_0_data, msg):
-            self.tb3_0_data['coloc_pose'] = msg
-            self.tb3_0_data['last_coloc_pose'] = msg
-            self.calculate_error('tb3_0')
+        if self._is_pose_updated(data, msg):
+            data['coloc_pose'] = msg
+            data['last_coloc_pose'] = msg
+            self.calculate_error(robot_id)
         else:
             # coloc_pose没有更新，跳过本次计算
-            self.tb3_0_data['skipped_count'] += 1
-    
-    def coloc_callback_1(self, msg):
-        """机器人1的协同定位位姿回调"""
-        # 检测coloc_pose是否真正更新
-        if self._is_pose_updated(self.tb3_1_data, msg):
-            self.tb3_1_data['coloc_pose'] = msg
-            self.tb3_1_data['last_coloc_pose'] = msg
-            self.calculate_error('tb3_1')
-        else:
-            # coloc_pose没有更新，跳过本次计算
-            self.tb3_1_data['skipped_count'] += 1
+            data['skipped_count'] += 1
     
     def _is_pose_updated(self, data, new_msg):
         """检测coloc_pose是否真正更新（位置或角度有变化）"""
@@ -241,7 +250,7 @@ class PoseEvalColoc(Node):
     
     def calculate_error(self, robot_id):
         """计算定位误差"""
-        data = self.tb3_0_data if robot_id == 'tb3_0' else self.tb3_1_data
+        data = self.robot_data[robot_id]
         
         # 如果TF还没准备好，暂不计算
         if not self.tf_ready:
@@ -327,13 +336,19 @@ class PoseEvalColoc(Node):
     def print_statistics(self):
         """打印统计信息"""
         self.get_logger().info('=' * 80)
-        self.get_logger().info(f'协同定位性能评估 - 有效样本数: TB3_0={self.tb3_0_data["count"]}, '
-                              f'TB3_1={self.tb3_1_data["count"]}')
-        self.get_logger().info(f'  跳过的重复样本: TB3_0={self.tb3_0_data["skipped_count"]}, '
-                              f'TB3_1={self.tb3_1_data["skipped_count"]}')
         
-        for robot_id in ['tb3_0', 'tb3_1']:
-            data = self.tb3_0_data if robot_id == 'tb3_0' else self.tb3_1_data
+        # 打印有效样本数
+        sample_counts = ', '.join([f'{rid.upper()}={self.robot_data[rid]["count"]}' 
+                                   for rid in self.robot_ids])
+        self.get_logger().info(f'协同定位性能评估 - 有效样本数: {sample_counts}')
+        
+        # 打印跳过的重复样本数
+        skipped_counts = ', '.join([f'{rid.upper()}={self.robot_data[rid]["skipped_count"]}' 
+                                    for rid in self.robot_ids])
+        self.get_logger().info(f'  跳过的重复样本: {skipped_counts}')
+        
+        for robot_id in self.robot_ids:
+            data = self.robot_data[robot_id]
             
             if len(data['errors']) < 2:
                 self.get_logger().info(f'{robot_id}: 数据不足')
@@ -363,8 +378,8 @@ class PoseEvalColoc(Node):
         """保存结果到文件"""
         self.get_logger().info('正在保存结果...')
         
-        for robot_id in ['tb3_0', 'tb3_1']:
-            data = self.tb3_0_data if robot_id == 'tb3_0' else self.tb3_1_data
+        for robot_id in self.robot_ids:
+            data = self.robot_data[robot_id]
             
             if len(data['errors']) == 0:
                 self.get_logger().warning(f'{robot_id}: 没有数据可保存')

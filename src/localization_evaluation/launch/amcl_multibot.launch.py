@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 #
 # Launch file for multi-robot AMCL localization
-# Launches map server and AMCL nodes for two robots
+# Launches map server and AMCL nodes for 2-4 robots
 #
 
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 
@@ -18,6 +19,7 @@ def generate_launch_description():
     
     # Launch arguments
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
+    num_robots = LaunchConfiguration('num_robots', default='2')
     map_yaml_file = LaunchConfiguration(
         'map', 
         default='/opt/ros/humble/share/turtlebot3_navigation2/map/map.yaml'
@@ -34,6 +36,16 @@ def generate_launch_description():
         pkg_localization_eval, 
         'param', 
         'nav2_params_tb3_1.yaml'
+    )
+    params_file_tb3_2 = os.path.join(
+        pkg_localization_eval, 
+        'param', 
+        'nav2_params_tb3_2.yaml'
+    )
+    params_file_tb3_3 = os.path.join(
+        pkg_localization_eval, 
+        'param', 
+        'nav2_params_tb3_3.yaml'
     )
     
     # Map server node
@@ -83,8 +95,47 @@ def generate_launch_description():
         ]
     )
     
+    # AMCL node for robot 3 (tb3_2) - 新增
+    amcl_node_3 = Node(
+        package='nav2_amcl',
+        executable='amcl',
+        name='tb3_2_amcl',
+        output='screen',
+        parameters=[params_file_tb3_2, {'use_sim_time': use_sim_time}],
+        remappings=[
+            ('/tf', '/tf'),
+            ('/tf_static', '/tf_static'),
+            ('map', '/map'),
+            ('scan', '/tb3_2/scan'),
+            ('amcl_pose', '/tb3_2/amcl_pose'),
+            ('particle_cloud', '/tb3_2/particle_cloud'),
+            ('initialpose', '/tb3_2/initialpose')
+        ],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
+    )
+    
+    # AMCL node for robot 4 (tb3_3) - 新增
+    amcl_node_4 = Node(
+        package='nav2_amcl',
+        executable='amcl',
+        name='tb3_3_amcl',
+        output='screen',
+        parameters=[params_file_tb3_3, {'use_sim_time': use_sim_time}],
+        remappings=[
+            ('/tf', '/tf'),
+            ('/tf_static', '/tf_static'),
+            ('map', '/map'),
+            ('scan', '/tb3_3/scan'),
+            ('amcl_pose', '/tb3_3/amcl_pose'),
+            ('particle_cloud', '/tb3_3/particle_cloud'),
+            ('initialpose', '/tb3_3/initialpose')
+        ],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 4']))
+    )
+    
     # Lifecycle manager for all nodes
-    # Both AMCLs now use global 'map' frame and set_initial_pose: true
+    # All AMCLs now use global 'map' frame and set_initial_pose: true
+    # node_names dynamically set based on num_robots
     lifecycle_manager_node = Node(
         package='nav2_lifecycle_manager',
         executable='lifecycle_manager',
@@ -93,7 +144,11 @@ def generate_launch_description():
         parameters=[{
             'use_sim_time': use_sim_time,
             'autostart': autostart,
-            'node_names': ['map_server', 'amcl', 'tb3_1_amcl'],
+            'node_names': PythonExpression([
+                "['map_server', 'amcl', 'tb3_1_amcl'] if int('", num_robots, "') == 2 else ",
+                "(['map_server', 'amcl', 'tb3_1_amcl', 'tb3_2_amcl'] if int('", num_robots, "') == 3 else ",
+                "['map_server', 'amcl', 'tb3_1_amcl', 'tb3_2_amcl', 'tb3_3_amcl'])"
+            ]),
             'bond_timeout': 10.0,
         }]
     )
@@ -106,6 +161,11 @@ def generate_launch_description():
         'use_sim_time',
         default_value='true',
         description='Use simulation (Gazebo) clock if true'
+    ))
+    ld.add_action(DeclareLaunchArgument(
+        'num_robots',
+        default_value='2',
+        description='Number of robots for AMCL (2-4)'
     ))
     ld.add_action(DeclareLaunchArgument(
         'map',
@@ -122,6 +182,8 @@ def generate_launch_description():
     ld.add_action(map_server_node)
     ld.add_action(amcl_node_1)
     ld.add_action(amcl_node_2)
+    ld.add_action(amcl_node_3)  # 新增
+    ld.add_action(amcl_node_4)  # 新增
     ld.add_action(lifecycle_manager_node)
     
     return ld

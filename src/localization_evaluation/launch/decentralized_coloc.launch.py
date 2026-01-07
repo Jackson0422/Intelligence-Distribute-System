@@ -22,13 +22,20 @@ Decentralized Collaborative Localization Launch File
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
     
     # 声明启动参数
+    declare_num_robots = DeclareLaunchArgument(
+        'num_robots',
+        default_value='2',
+        description='Number of robots for collaborative localization (2-4)'
+    )
+    
     declare_gossip_rate = DeclareLaunchArgument(
         'gossip_rate',
         default_value='30.0',
@@ -54,6 +61,7 @@ def generate_launch_description():
     )
     
     # 获取启动配置
+    num_robots = LaunchConfiguration('num_robots')
     gossip_rate = LaunchConfiguration('gossip_rate')
     self_weight = LaunchConfiguration('self_weight')
     peer_timeout = LaunchConfiguration('peer_timeout')
@@ -69,7 +77,7 @@ def generate_launch_description():
             # 使用Gazebo仿真时间，保证与AMCL/TF时间戳一致
             'use_sim_time': True,
             'robot_id': 'tb3_0',
-            'peer_ids': ['tb3_1'],
+            'peer_ids': ['tb3_1', 'tb3_2', 'tb3_3'],  # 包含所有其他机器人
             'gossip_rate': gossip_rate,
             'self_weight': self_weight,
             'peer_timeout': peer_timeout,
@@ -92,7 +100,7 @@ def generate_launch_description():
             # 使用Gazebo仿真时间，保证与AMCL/TF时间戳一致
             'use_sim_time': True,
             'robot_id': 'tb3_1',
-            'peer_ids': ['tb3_0'],
+            'peer_ids': ['tb3_0', 'tb3_2', 'tb3_3'],  # 包含所有其他机器人
             'gossip_rate': gossip_rate,
             'self_weight': self_weight,
             'peer_timeout': peer_timeout,
@@ -104,10 +112,55 @@ def generate_launch_description():
         ]
     )
     
+    # 协同定位代理 - TB3_2（新增）
+    agent_tb3_2 = Node(
+        package='localization_evaluation',
+        executable='decentralized_coloc_agent',
+        name='coloc_agent_tb3_2',
+        output='screen',
+        parameters=[{
+            'use_sim_time': True,
+            'robot_id': 'tb3_2',
+            'peer_ids': ['tb3_0', 'tb3_1', 'tb3_3'],
+            'gossip_rate': gossip_rate,
+            'self_weight': self_weight,
+            'peer_timeout': peer_timeout,
+            'correction_threshold': correction_threshold
+        }],
+        remappings=[
+            ('/tf', '/tf'),
+            ('/tf_static', '/tf_static')
+        ],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
+    )
+    
+    # 协同定位代理 - TB3_3（新增）
+    agent_tb3_3 = Node(
+        package='localization_evaluation',
+        executable='decentralized_coloc_agent',
+        name='coloc_agent_tb3_3',
+        output='screen',
+        parameters=[{
+            'use_sim_time': True,
+            'robot_id': 'tb3_3',
+            'peer_ids': ['tb3_0', 'tb3_1', 'tb3_2'],
+            'gossip_rate': gossip_rate,
+            'self_weight': self_weight,
+            'peer_timeout': peer_timeout,
+            'correction_threshold': correction_threshold
+        }],
+        remappings=[
+            ('/tf', '/tf'),
+            ('/tf_static', '/tf_static')
+        ],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 4']))
+    )
+    
     # 构建启动描述
     ld = LaunchDescription()
     
     # 添加参数声明
+    ld.add_action(declare_num_robots)
     ld.add_action(declare_gossip_rate)
     ld.add_action(declare_self_weight)
     ld.add_action(declare_peer_timeout)
@@ -116,6 +169,8 @@ def generate_launch_description():
     # 添加节点
     ld.add_action(agent_tb3_0)
     ld.add_action(agent_tb3_1)
+    ld.add_action(agent_tb3_2)  # 新增
+    ld.add_action(agent_tb3_3)  # 新增
     
     return ld
 

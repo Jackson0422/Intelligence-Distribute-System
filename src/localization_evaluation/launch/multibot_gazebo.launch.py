@@ -10,8 +10,9 @@ import tempfile
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 import xacro
 
@@ -28,6 +29,7 @@ def generate_launch_description():
     model_folder = 'turtlebot3_' + TURTLEBOT3_MODEL
     
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
+    num_robots = LaunchConfiguration('num_robots', default='2')
     
     # URDF file for robot_state_publisher (xacro format)
     urdf_file = os.path.join(
@@ -58,6 +60,22 @@ def generate_launch_description():
     robot_desc_2 = xacro.process_file(tmp2_path).toxml()
     os.unlink(tmp2_path)
     
+    # Process xacro for robot 3 (tb3_2 namespace) - 新增
+    robot_desc_3_xacro = urdf_content.replace('$(arg namespace)', 'tb3_2/')
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', delete=False) as tmp3:
+        tmp3.write(robot_desc_3_xacro)
+        tmp3_path = tmp3.name
+    robot_desc_3 = xacro.process_file(tmp3_path).toxml()
+    os.unlink(tmp3_path)
+    
+    # Process xacro for robot 4 (tb3_3 namespace) - 新增
+    robot_desc_4_xacro = urdf_content.replace('$(arg namespace)', 'tb3_3/')
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', delete=False) as tmp4:
+        tmp4.write(robot_desc_4_xacro)
+        tmp4_path = tmp4.name
+    robot_desc_4 = xacro.process_file(tmp4_path).toxml()
+    os.unlink(tmp4_path)
+    
     # Robot 1 position (no namespace)
     x_pose_1 = LaunchConfiguration('x_pose_1', default='-2.0')
     y_pose_1 = LaunchConfiguration('y_pose_1', default='-0.5')
@@ -65,6 +83,14 @@ def generate_launch_description():
     # Robot 2 position (tb3_1 namespace)
     x_pose_2 = LaunchConfiguration('x_pose_2', default='0.0')
     y_pose_2 = LaunchConfiguration('y_pose_2', default='0.5')
+    
+    # Robot 3 position (tb3_2 namespace) - 新增
+    x_pose_3 = LaunchConfiguration('x_pose_3', default='-1.0')
+    y_pose_3 = LaunchConfiguration('y_pose_3', default='-1.5')
+    
+    # Robot 4 position (tb3_3 namespace) - 新增
+    x_pose_4 = LaunchConfiguration('x_pose_4', default='2.0')
+    y_pose_4 = LaunchConfiguration('y_pose_4', default='0.0')
     
     # World file
     world = os.path.join(
@@ -86,6 +112,22 @@ def generate_launch_description():
         pkg_localization_eval,
         'models',
         'tb3_1',
+        'model.sdf'
+    )
+    
+    # SDF model file for robot 3 (custom with tb3_2 namespace) - 新增
+    sdf_path_robot3 = os.path.join(
+        pkg_localization_eval,
+        'models',
+        'tb3_2',
+        'model.sdf'
+    )
+    
+    # SDF model file for robot 4 (custom with tb3_3 namespace) - 新增
+    sdf_path_robot4 = os.path.join(
+        pkg_localization_eval,
+        'models',
+        'tb3_3',
         'model.sdf'
     )
     
@@ -165,6 +207,78 @@ def generate_launch_description():
         actions=[spawn_robot_2]
     )
     
+    # ========== Robot 3 (tb3_2 namespace) ========== 新增
+    # Robot state publisher for robot 3
+    robot_state_pub_3 = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        namespace='tb3_2',
+        output='screen',
+        parameters=[{
+            'robot_description': robot_desc_3,
+            'use_sim_time': use_sim_time
+        }],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
+    )
+    
+    # Spawn robot 3 in Gazebo
+    spawn_robot_3 = Node(
+        package='gazebo_ros',
+        executable='spawn_entity.py',
+        arguments=[
+            '-entity', 'tb3_2',
+            '-file', sdf_path_robot3,
+            '-x', x_pose_3,
+            '-y', y_pose_3,
+            '-z', '0.01',
+        ],
+        output='screen',
+        condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
+    )
+    
+    # Delay robot 3 spawn
+    delayed_spawn_robot_3 = TimerAction(
+        period=4.0,
+        actions=[spawn_robot_3]
+    )
+    
+    # ========== Robot 4 (tb3_3 namespace) ========== 新增
+    # Robot state publisher for robot 4
+    robot_state_pub_4 = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        namespace='tb3_3',
+        output='screen',
+        parameters=[{
+            'robot_description': robot_desc_4,
+            'use_sim_time': use_sim_time
+        }],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 4']))
+    )
+    
+    # Spawn robot 4 in Gazebo
+    spawn_robot_4 = Node(
+        package='gazebo_ros',
+        executable='spawn_entity.py',
+        arguments=[
+            '-entity', 'tb3_3',
+            '-file', sdf_path_robot4,
+            '-x', x_pose_4,
+            '-y', y_pose_4,
+            '-z', '0.01',
+        ],
+        output='screen',
+        condition=IfCondition(PythonExpression([num_robots, ' >= 4']))
+    )
+    
+    # Delay robot 4 spawn
+    delayed_spawn_robot_4 = TimerAction(
+        period=6.0,
+        actions=[spawn_robot_4]
+    )
+    
     # Build launch description
     ld = LaunchDescription()
     
@@ -173,6 +287,11 @@ def generate_launch_description():
         'use_sim_time',
         default_value='true',
         description='Use simulation (Gazebo) clock if true'
+    ))
+    ld.add_action(DeclareLaunchArgument(
+        'num_robots',
+        default_value='2',
+        description='Number of robots to spawn (2-4)'
     ))
     ld.add_action(DeclareLaunchArgument(
         'x_pose_1', default_value='-2.0',
@@ -190,6 +309,22 @@ def generate_launch_description():
         'y_pose_2', default_value='0.5',
         description='Y position of robot 2'
     ))
+    ld.add_action(DeclareLaunchArgument(
+        'x_pose_3', default_value='-1.0',
+        description='X position of robot 3'
+    ))
+    ld.add_action(DeclareLaunchArgument(
+        'y_pose_3', default_value='-1.5',
+        description='Y position of robot 3'
+    ))
+    ld.add_action(DeclareLaunchArgument(
+        'x_pose_4', default_value='2.0',
+        description='X position of robot 4'
+    ))
+    ld.add_action(DeclareLaunchArgument(
+        'y_pose_4', default_value='0.0',
+        description='Y position of robot 4'
+    ))
     
     # Add actions
     ld.add_action(gzserver_cmd)
@@ -198,5 +333,9 @@ def generate_launch_description():
     ld.add_action(spawn_robot_1)
     ld.add_action(robot_state_pub_2)
     ld.add_action(delayed_spawn_robot_2)
+    ld.add_action(robot_state_pub_3)  # 新增
+    ld.add_action(delayed_spawn_robot_3)  # 新增
+    ld.add_action(robot_state_pub_4)  # 新增
+    ld.add_action(delayed_spawn_robot_4)  # 新增
     
     return ld

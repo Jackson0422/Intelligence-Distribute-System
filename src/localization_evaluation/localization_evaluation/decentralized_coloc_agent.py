@@ -445,6 +445,22 @@ class DecentralizedColocAgent(Node):
         """将角度归一化到[-π, π]"""
         return math.atan2(math.sin(angle), math.cos(angle))
     
+    def _get_base_frame(self, robot_id):
+        """
+        获取机器人的base_footprint frame名称
+        处理tb3_0的特殊命名（无前缀，后向兼容）
+        
+        Args:
+            robot_id: 'tb3_0', 'tb3_1', 'tb3_2', 'tb3_3'
+        
+        Returns:
+            TF frame名称（tb3_0无前缀，其他有命名空间前缀）
+        """
+        if robot_id == 'tb3_0':
+            return 'base_footprint'
+        else:
+            return f'{robot_id}/base_footprint'
+    
     def generate_relative_observation(self, peer_id):
         """
         从TF获取相对位姿并加噪声，模拟UWB/视觉相对传感器
@@ -452,8 +468,9 @@ class DecentralizedColocAgent(Node):
         """
         try:
             # 获取ground truth相对变换：T_self^{-1} * T_peer
-            self_frame = f'{self.robot_id}/base_footprint'
-            peer_frame = f'{peer_id}/base_footprint'
+            # 使用辅助方法处理tb3_0的特殊命名
+            self_frame = self._get_base_frame(self.robot_id)
+            peer_frame = self._get_base_frame(peer_id)
 
             # 注意：这里不能用阻塞式lookup_transform(timeout=0.1)。
             # 在TF短暂不可用时会把gossip循环硬限速到~10Hz（与timeout一致），从而让gossip_rate=30Hz失效。
