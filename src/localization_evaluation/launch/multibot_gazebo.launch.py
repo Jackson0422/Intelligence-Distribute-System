@@ -60,7 +60,7 @@ def generate_launch_description():
     robot_desc_2 = xacro.process_file(tmp2_path).toxml()
     os.unlink(tmp2_path)
     
-    # Process xacro for robot 3 (tb3_2 namespace) - 新增
+    # Process xacro for robot 3 (tb3_2 namespace) - Added
     robot_desc_3_xacro = urdf_content.replace('$(arg namespace)', 'tb3_2/')
     with tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', delete=False) as tmp3:
         tmp3.write(robot_desc_3_xacro)
@@ -68,7 +68,7 @@ def generate_launch_description():
     robot_desc_3 = xacro.process_file(tmp3_path).toxml()
     os.unlink(tmp3_path)
     
-    # Process xacro for robot 4 (tb3_3 namespace) - 新增
+    # Process xacro for robot 4 (tb3_3 namespace) - Added
     robot_desc_4_xacro = urdf_content.replace('$(arg namespace)', 'tb3_3/')
     with tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', delete=False) as tmp4:
         tmp4.write(robot_desc_4_xacro)
@@ -84,11 +84,11 @@ def generate_launch_description():
     x_pose_2 = LaunchConfiguration('x_pose_2', default='0.0')
     y_pose_2 = LaunchConfiguration('y_pose_2', default='0.5')
     
-    # Robot 3 position (tb3_2 namespace) - 新增
+    # Robot 3 position (tb3_2 namespace) - Added
     x_pose_3 = LaunchConfiguration('x_pose_3', default='-1.0')
     y_pose_3 = LaunchConfiguration('y_pose_3', default='-1.5')
     
-    # Robot 4 position (tb3_3 namespace) - 新增
+    # Robot 4 position (tb3_3 namespace) - Added
     x_pose_4 = LaunchConfiguration('x_pose_4', default='2.0')
     y_pose_4 = LaunchConfiguration('y_pose_4', default='0.0')
     
@@ -115,7 +115,7 @@ def generate_launch_description():
         'model.sdf'
     )
     
-    # SDF model file for robot 3 (custom with tb3_2 namespace) - 新增
+    # SDF model file for robot 3 (custom with tb3_2 namespace) - Added
     sdf_path_robot3 = os.path.join(
         pkg_localization_eval,
         'models',
@@ -123,7 +123,7 @@ def generate_launch_description():
         'model.sdf'
     )
     
-    # SDF model file for robot 4 (custom with tb3_3 namespace) - 新增
+    # SDF model file for robot 4 (custom with tb3_3 namespace) - Added
     sdf_path_robot4 = os.path.join(
         pkg_localization_eval,
         'models',
@@ -207,7 +207,7 @@ def generate_launch_description():
         actions=[spawn_robot_2]
     )
     
-    # ========== Robot 3 (tb3_2 namespace) ========== 新增
+    # ========== Robot 3 (tb3_2 namespace) ========== Added
     # Robot state publisher for robot 3
     robot_state_pub_3 = Node(
         package='robot_state_publisher',
@@ -243,7 +243,7 @@ def generate_launch_description():
         actions=[spawn_robot_3]
     )
     
-    # ========== Robot 4 (tb3_3 namespace) ========== 新增
+    # ========== Robot 4 (tb3_3 namespace) ========== Added
     # Robot state publisher for robot 4
     robot_state_pub_4 = Node(
         package='robot_state_publisher',
@@ -333,9 +333,9 @@ def generate_launch_description():
     ld.add_action(spawn_robot_1)
     ld.add_action(robot_state_pub_2)
     ld.add_action(delayed_spawn_robot_2)
-    ld.add_action(robot_state_pub_3)  # 新增
-    ld.add_action(delayed_spawn_robot_3)  # 新增
-    ld.add_action(robot_state_pub_4)  # 新增
-    ld.add_action(delayed_spawn_robot_4)  # 新增
+    ld.add_action(robot_state_pub_3)  # Added
+    ld.add_action(delayed_spawn_robot_3)  # Added
+    ld.add_action(robot_state_pub_4)  # Added
+    ld.add_action(delayed_spawn_robot_4)  # Added
     
     return ld

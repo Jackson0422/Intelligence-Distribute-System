@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-定位性能评估节点 (Pose Evaluation Node)
+Pose Evaluation Node
 
-功能：
-- 同步记录 Ground Truth (odom) 和 AMCL 估计位姿
-- 时间对齐计算位置误差和航向角误差
-- 输出误差曲线和统计指标（RMSE等）
+Functionality:
+- Synchronously records Ground Truth (odom) and AMCL estimated poses.
+- Calculates position and heading errors with time alignment.
+- Outputs error curves and statistical metrics (RMSE, etc.).
 
-订阅话题：
-- /odom: Ground Truth (Gazebo仿真中odom是理想值)
-- /amcl_pose: AMCL 估计位姿
+Subscribed Topics:
+- /odom: Ground Truth (in Gazebo simulation, odom is the ideal value)
+- /amcl_pose: AMCL estimated pose
 
-该节点不参与路径规划或运动控制，仅评估定位系统性能。
+This node does not participate in path planning or motion control; it only evaluates the performance of the localization system.
 """
 
 import rclpy
@@ -30,7 +30,7 @@ from typing import List, Optional
 
 @dataclass
 class PoseRecord:
-    """位姿记录"""
+    """Pose record"""
     timestamp: float
     x: float
     y: float
@@ -39,40 +39,40 @@ class PoseRecord:
 
 @dataclass
 class ErrorRecord:
-    """误差记录"""
+    """Error record"""
     timestamp: float
     x_error: float
     y_error: float
-    position_error: float  # 欧氏距离误差
+    position_error: float  # Euclidean distance error
     yaw_error: float
 
 
 class PoseEvalNode(Node):
-    """定位性能评估节点"""
+    """Pose Evaluation Node"""
     
-    # 数据保存路径
+    # Data save path
     OUTPUT_DIR = os.path.expanduser('~/ids_roswk/evaluation_results')
     
     def __init__(self):
         super().__init__('pose_eval_node')
         
-        # 数据存储
+        # Data storage
         self.ground_truth_records: List[PoseRecord] = []
         self.amcl_records: List[PoseRecord] = []
         self.error_records: List[ErrorRecord] = []
         
-        # 最新位姿（用于实时计算）
+        # Latest poses (for real-time calculation)
         self.latest_gt: Optional[PoseRecord] = None
         self.latest_amcl: Optional[PoseRecord] = None
         
-        # 评估状态
+        # Evaluation status
         self.is_recording = False
         self.start_time: Optional[float] = None
         
-        # 创建输出目录
+        # Create output directory
         os.makedirs(self.OUTPUT_DIR, exist_ok=True)
         
-        # QoS设置
+        # QoS settings
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
@@ -86,7 +86,7 @@ class PoseEvalNode(Node):
             durability=DurabilityPolicy.TRANSIENT_LOCAL
         )
         
-        # 订阅 odom 作为 Ground Truth（Gazebo仿真中odom是理想值）
+        # Subscribe to odom as Ground Truth (in Gazebo simulation, odom is the ideal value)
         self.odom_sub = self.create_subscription(
             Odometry,
             '/odom',
@@ -94,7 +94,7 @@ class PoseEvalNode(Node):
             sensor_qos
         )
         
-        # 订阅 AMCL 估计位姿
+        # Subscribe to AMCL estimated pose
         self.amcl_sub = self.create_subscription(
             PoseWithCovarianceStamped,
             '/amcl_pose',
@@ -102,25 +102,25 @@ class PoseEvalNode(Node):
             reliable_qos
         )
         
-        # 定时器：定期计算和记录误差
+        # Timer: Periodically calculate and record errors
         self.eval_timer = self.create_timer(0.1, self.evaluate_error)  # 10Hz
         
-        # 定时器：定期输出统计信息
-        self.stats_timer = self.create_timer(5.0, self.print_statistics)  # 每5秒
+        # Timer: Periodically output statistics
+        self.stats_timer = self.create_timer(5.0, self.print_statistics)  # Every 5 seconds
         
         self.get_logger().info('='*60)
-        self.get_logger().info('定位性能评估节点已启动')
-        self.get_logger().info('Ground Truth: /odom (Gazebo仿真理想值)')
-        self.get_logger().info('估计位姿: /amcl_pose')
-        self.get_logger().info(f'数据保存目录: {self.OUTPUT_DIR}')
+        self.get_logger().info('Pose Evaluation Node has been started.')
+        self.get_logger().info('Ground Truth: /odom (ideal value in Gazebo simulation)')
+        self.get_logger().info('Estimated Pose: /amcl_pose')
+        self.get_logger().info(f'Data saving directory: {self.OUTPUT_DIR}')
         self.get_logger().info('='*60)
-        self.get_logger().info('等待接收位姿数据...')
+        self.get_logger().info('Waiting to receive pose data...')
         
-        # 标记是否使用AMCL（如果收到AMCL消息则为True）
+        # Flag to indicate if AMCL is being used (True if an AMCL message is received)
         self.using_amcl = False
 
     def odom_callback(self, msg: Odometry):
-        """处理odom数据作为Ground Truth（Gazebo仿真中odom是理想值）"""
+        """Processes odom data as Ground Truth (in Gazebo simulation, odom is the ideal value)"""
         pose = msg.pose.pose
         x = pose.position.x
         y = pose.position.y
@@ -128,28 +128,28 @@ class PoseEvalNode(Node):
         
         timestamp = time.time()
         
-        # odom 作为 Ground Truth
+        # odom as Ground Truth
         self.latest_gt = PoseRecord(timestamp, x, y, yaw)
         
-        # 开始记录
+        # Start recording
         if not self.is_recording:
             self.is_recording = True
             self.start_time = timestamp
-            self.get_logger().info('开始记录数据 (odom作为Ground Truth)')
+            self.get_logger().info('Start recording data (using odom as Ground Truth)')
         
-        # 保存 Ground Truth 记录
+        # Save Ground Truth record
         self.ground_truth_records.append(self.latest_gt)
         
-        # 如果没有AMCL，也用odom作为估计值（此时误差为0，仅用于测试）
+        # If there is no AMCL, use odom as the estimate as well (error will be 0, for testing purposes only)
         if not self.using_amcl:
             self.latest_amcl = PoseRecord(timestamp, x, y, yaw)
             self.amcl_records.append(self.latest_amcl)
 
     def amcl_callback(self, msg: PoseWithCovarianceStamped):
-        """处理AMCL估计位姿"""
+        """Processes AMCL estimated pose"""
         if not self.using_amcl:
             self.using_amcl = True
-            self.get_logger().info('检测到 AMCL 位姿，使用 AMCL 作为估计源')
+            self.get_logger().info('AMCL pose detected, using AMCL as the estimation source.')
         
         pose = msg.pose.pose
         x = pose.position.x
@@ -164,16 +164,16 @@ class PoseEvalNode(Node):
             self.amcl_records.append(self.latest_amcl)
 
     def evaluate_error(self):
-        """计算当前误差"""
+        """Calculates the current error"""
         if self.latest_gt is None or self.latest_amcl is None:
             return
         
-        # 时间对齐检查（两个位姿时间差不超过0.5秒）
+        # Time alignment check (time difference between the two poses should not exceed 0.5 seconds)
         time_diff = abs(self.latest_gt.timestamp - self.latest_amcl.timestamp)
         if time_diff > 0.5:
             return
         
-        # 计算误差
+        # Calculate errors
         x_error = self.latest_amcl.x - self.latest_gt.x
         y_error = self.latest_amcl.y - self.latest_gt.y
         position_error = math.sqrt(x_error**2 + y_error**2)
@@ -192,28 +192,28 @@ class PoseEvalNode(Node):
         self.error_records.append(error)
 
     def print_statistics(self):
-        """输出统计信息"""
+        """Outputs statistical information"""
         if len(self.error_records) < 10:
-            self.get_logger().info(f'数据收集中... GT: {len(self.ground_truth_records)}, '
-                                   f'估计: {len(self.amcl_records)}, '
-                                   f'误差记录: {len(self.error_records)}')
+            self.get_logger().info(f'Collecting data... GT: {len(self.ground_truth_records)}, '
+                                   f'Estimate: {len(self.amcl_records)}, '
+                                   f'Error Records: {len(self.error_records)}')
             return
         
-        # 计算统计指标
+        # Calculate statistical metrics
         stats = self.calculate_statistics()
         
         self.get_logger().info('-'*50)
-        self.get_logger().info(f'【定位误差统计】 (样本数: {stats["count"]})')
-        self.get_logger().info(f'  位置 RMSE:    {stats["position_rmse"]:.4f} m')
-        self.get_logger().info(f'  位置 Mean:    {stats["position_mean"]:.4f} m')
-        self.get_logger().info(f'  位置 Max:     {stats["position_max"]:.4f} m')
-        self.get_logger().info(f'  航向角 RMSE:  {math.degrees(stats["yaw_rmse"]):.2f}°')
-        self.get_logger().info(f'  航向角 Mean:  {math.degrees(stats["yaw_mean"]):.2f}°')
-        self.get_logger().info(f'  航向角 Max:   {math.degrees(stats["yaw_max"]):.2f}°')
+        self.get_logger().info(f'【Localization Error Statistics】 (Sample count: {stats["count"]})')
+        self.get_logger().info(f'  Position RMSE: {stats["position_rmse"]:.4f} m')
+        self.get_logger().info(f'  Position Mean: {stats["position_mean"]:.4f} m')
+        self.get_logger().info(f'  Position Max:  {stats["position_max"]:.4f} m')
+        self.get_logger().info(f'  Heading RMSE:   {math.degrees(stats["yaw_rmse"]):.2f}°')
+        self.get_logger().info(f'  Heading Mean:   {math.degrees(stats["yaw_mean"]):.2f}°')
+        self.get_logger().info(f'  Heading Max:    {math.degrees(stats["yaw_max"]):.2f}°')
         self.get_logger().info('-'*50)
 
     def calculate_statistics(self) -> dict:
-        """计算误差统计指标"""
+        """Calculates error statistical metrics"""
         if len(self.error_records) == 0:
             return {
                 'count': 0,
@@ -227,13 +227,13 @@ class PoseEvalNode(Node):
         
         n = len(self.error_records)
         
-        # 位置误差
+        # Position error
         position_errors = [e.position_error for e in self.error_records]
         position_rmse = math.sqrt(sum(e**2 for e in position_errors) / n)
         position_mean = sum(position_errors) / n
         position_max = max(position_errors)
         
-        # 航向角误差
+        # Heading error
         yaw_errors = [abs(e.yaw_error) for e in self.error_records]
         yaw_rmse = math.sqrt(sum(e**2 for e in yaw_errors) / n)
         yaw_mean = sum(yaw_errors) / n
@@ -250,10 +250,10 @@ class PoseEvalNode(Node):
         }
 
     def save_results(self):
-        """保存评估结果到文件"""
+        """Saves evaluation results to files"""
         timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        # 保存误差数据
+        # Save error data
         error_file = os.path.join(self.OUTPUT_DIR, f'errors_{timestamp_str}.csv')
         with open(error_file, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -261,7 +261,7 @@ class PoseEvalNode(Node):
             for e in self.error_records:
                 writer.writerow([e.timestamp, e.x_error, e.y_error, e.position_error, e.yaw_error])
         
-        # 保存Ground Truth数据
+        # Save Ground Truth data
         gt_file = os.path.join(self.OUTPUT_DIR, f'ground_truth_{timestamp_str}.csv')
         with open(gt_file, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -269,7 +269,7 @@ class PoseEvalNode(Node):
             for r in self.ground_truth_records:
                 writer.writerow([r.timestamp, r.x, r.y, r.yaw])
         
-        # 保存估计位姿数据
+        # Save estimated pose data
         est_file = os.path.join(self.OUTPUT_DIR, f'estimated_{timestamp_str}.csv')
         with open(est_file, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -277,38 +277,38 @@ class PoseEvalNode(Node):
             for r in self.amcl_records:
                 writer.writerow([r.timestamp, r.x, r.y, r.yaw])
         
-        # 保存统计结果
+        # Save statistics results
         stats = self.calculate_statistics()
         stats_file = os.path.join(self.OUTPUT_DIR, f'statistics_{timestamp_str}.txt')
         with open(stats_file, 'w') as f:
             f.write('='*50 + '\n')
-            f.write('定位性能评估报告\n')
-            f.write(f'时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
+            f.write('Localization Performance Evaluation Report\n')
+            f.write(f'Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
             f.write('='*50 + '\n\n')
-            f.write(f'样本数量: {stats["count"]}\n\n')
-            f.write('【位置误差】\n')
+            f.write(f'Number of samples: {stats["count"]}\n\n')
+            f.write('【Position Error】\n')
             f.write(f'  RMSE: {stats["position_rmse"]:.4f} m\n')
             f.write(f'  Mean: {stats["position_mean"]:.4f} m\n')
             f.write(f'  Max:  {stats["position_max"]:.4f} m\n\n')
-            f.write('【航向角误差】\n')
+            f.write('【Heading Error】\n')
             f.write(f'  RMSE: {math.degrees(stats["yaw_rmse"]):.2f}°\n')
             f.write(f'  Mean: {math.degrees(stats["yaw_mean"]):.2f}°\n')
             f.write(f'  Max:  {math.degrees(stats["yaw_max"]):.2f}°\n')
         
-        self.get_logger().info(f'结果已保存到: {self.OUTPUT_DIR}')
+        self.get_logger().info(f'Results have been saved to: {self.OUTPUT_DIR}')
         self.get_logger().info(f'  - {os.path.basename(error_file)}')
         self.get_logger().info(f'  - {os.path.basename(gt_file)}')
         self.get_logger().info(f'  - {os.path.basename(est_file)}')
         self.get_logger().info(f'  - {os.path.basename(stats_file)}')
 
     def quaternion_to_yaw(self, q) -> float:
-        """四元数转航向角"""
+        """Converts quaternion to yaw angle"""
         siny_cosp = 2 * (q.w * q.z + q.x * q.y)
         cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
         return math.atan2(siny_cosp, cosy_cosp)
 
     def normalize_angle(self, angle: float) -> float:
-        """将角度归一化到 [-pi, pi]"""
+        """Normalizes an angle to the range [-pi, pi]"""
         while angle > math.pi:
             angle -= 2 * math.pi
         while angle < -math.pi:
@@ -323,21 +323,21 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info('\n用户中断，正在保存数据...')
+        node.get_logger().info('\nUser interrupt, saving data...')
     finally:
-        # 保存结果
+        # Save results
         if len(node.error_records) > 0:
             node.save_results()
-            # 打印最终统计
+            # Print final statistics
             node.get_logger().info('\n' + '='*60)
-            node.get_logger().info('【最终评估结果】')
+            node.get_logger().info('【Final Evaluation Results】')
             stats = node.calculate_statistics()
-            node.get_logger().info(f'  总样本数: {stats["count"]}')
-            node.get_logger().info(f'  位置 RMSE: {stats["position_rmse"]:.4f} m')
-            node.get_logger().info(f'  航向角 RMSE: {math.degrees(stats["yaw_rmse"]):.2f}°')
+            node.get_logger().info(f'  Total samples: {stats["count"]}')
+            node.get_logger().info(f'  Position RMSE: {stats["position_rmse"]:.4f} m')
+            node.get_logger().info(f'  Heading RMSE: {math.degrees(stats["yaw_rmse"]):.2f}°')
             node.get_logger().info('='*60)
         else:
-            node.get_logger().warn('没有收集到足够的数据')
+            node.get_logger().warn('Not enough data was collected.')
         
         node.destroy_node()
         rclpy.shutdown()

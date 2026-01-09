@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 """
-去中心化协同定位启动文件
 Decentralized Collaborative Localization Launch File
 
-启动两个协同定位代理节点，实现机器人之间的P2P协同定位
+Launches two collaborative localization agent nodes to enable P2P collaborative localization between robots.
 
-使用方法:
-1. 先启动Gazebo和AMCL:
+Usage:
+1. First, launch Gazebo and AMCL:
    Terminal 1: ros2 launch localization_evaluation multibot_gazebo.launch.py
    Terminal 2: ros2 launch localization_evaluation amcl_multibot.launch.py
 
-2. 再启动协同定位层:
+2. Then, launch the collaborative localization layer:
    Terminal 3: ros2 launch localization_evaluation decentralized_coloc.launch.py
 
-3. 启动评估和控制:
+3. Launch evaluation and control:
    Terminal 4: ros2 run localization_evaluation pose_eval_coloc
    Terminal 5: ros2 run localization_evaluation track_multibot
 
-作者: Distributed Intelligent Systems Course
+Author: Distributed Intelligent Systems Course
 """
 
 from launch import LaunchDescription
@@ -29,7 +28,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     
-    # 声明启动参数
+    # Declare launch arguments
     declare_num_robots = DeclareLaunchArgument(
         'num_robots',
         default_value='2',
@@ -60,47 +59,47 @@ def generate_launch_description():
         description='Minimum correction distance to publish (meters)'
     )
     
-    # 获取启动配置
+    # Get launch configurations
     num_robots = LaunchConfiguration('num_robots')
     gossip_rate = LaunchConfiguration('gossip_rate')
     self_weight = LaunchConfiguration('self_weight')
     peer_timeout = LaunchConfiguration('peer_timeout')
     correction_threshold = LaunchConfiguration('correction_threshold')
     
-    # 协同定位代理 - TB3_0
+    # Collaborative Localization Agent - TB3_0
     agent_tb3_0 = Node(
         package='localization_evaluation',
         executable='decentralized_coloc_agent',
         name='coloc_agent_tb3_0',
         output='screen',
         parameters=[{
-            # 使用Gazebo仿真时间，保证与AMCL/TF时间戳一致
+            # Use Gazebo simulation time to ensure consistency with AMCL/TF timestamps
             'use_sim_time': True,
             'robot_id': 'tb3_0',
-            'peer_ids': ['tb3_1', 'tb3_2', 'tb3_3'],  # 包含所有其他机器人
+            'peer_ids': ['tb3_1', 'tb3_2', 'tb3_3'],  # Includes all other robots
             'gossip_rate': gossip_rate,
             'self_weight': self_weight,
             'peer_timeout': peer_timeout,
             'correction_threshold': correction_threshold
         }],
         remappings=[
-            # 确保TF话题正确
+            # Ensure correct TF topics
             ('/tf', '/tf'),
             ('/tf_static', '/tf_static')
         ]
     )
     
-    # 协同定位代理 - TB3_1
+    # Collaborative Localization Agent - TB3_1
     agent_tb3_1 = Node(
         package='localization_evaluation',
         executable='decentralized_coloc_agent',
         name='coloc_agent_tb3_1',
         output='screen',
         parameters=[{
-            # 使用Gazebo仿真时间，保证与AMCL/TF时间戳一致
+            # Use Gazebo simulation time to ensure consistency with AMCL/TF timestamps
             'use_sim_time': True,
             'robot_id': 'tb3_1',
-            'peer_ids': ['tb3_0', 'tb3_2', 'tb3_3'],  # 包含所有其他机器人
+            'peer_ids': ['tb3_0', 'tb3_2', 'tb3_3'],  # Includes all other robots
             'gossip_rate': gossip_rate,
             'self_weight': self_weight,
             'peer_timeout': peer_timeout,
@@ -112,7 +111,7 @@ def generate_launch_description():
         ]
     )
     
-    # 协同定位代理 - TB3_2（新增）
+    # Collaborative Localization Agent - TB3_2 (Added)
     agent_tb3_2 = Node(
         package='localization_evaluation',
         executable='decentralized_coloc_agent',
@@ -134,7 +133,7 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
     )
     
-    # 协同定位代理 - TB3_3（新增）
+    # Collaborative Localization Agent - TB3_3 (Added)
     agent_tb3_3 = Node(
         package='localization_evaluation',
         executable='decentralized_coloc_agent',
@@ -156,21 +155,20 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression([num_robots, ' >= 4']))
     )
     
-    # 构建启动描述
+    # Build launch description
     ld = LaunchDescription()
     
-    # 添加参数声明
+    # Add parameter declarations
     ld.add_action(declare_num_robots)
     ld.add_action(declare_gossip_rate)
     ld.add_action(declare_self_weight)
     ld.add_action(declare_peer_timeout)
     ld.add_action(declare_correction_threshold)
     
-    # 添加节点
+    # Add nodes
     ld.add_action(agent_tb3_0)
     ld.add_action(agent_tb3_1)
-    ld.add_action(agent_tb3_2)  # 新增
-    ld.add_action(agent_tb3_3)  # 新增
+    ld.add_action(agent_tb3_2)  # Added
+    ld.add_action(agent_tb3_3)  # Added
     
     return ld
-

@@ -95,7 +95,7 @@ def generate_launch_description():
         ]
     )
     
-    # AMCL node for robot 3 (tb3_2) - 新增
+    # AMCL node for robot 3 (tb3_2) - Added
     amcl_node_3 = Node(
         package='nav2_amcl',
         executable='amcl',
@@ -114,7 +114,7 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
     )
     
-    # AMCL node for robot 4 (tb3_3) - 新增
+    # AMCL node for robot 4 (tb3_3) - Added
     amcl_node_4 = Node(
         package='nav2_amcl',
         executable='amcl',
@@ -182,8 +182,8 @@ def generate_launch_description():
     ld.add_action(map_server_node)
     ld.add_action(amcl_node_1)
     ld.add_action(amcl_node_2)
-    ld.add_action(amcl_node_3)  # 新增
-    ld.add_action(amcl_node_4)  # 新增
+    ld.add_action(amcl_node_3)  # Added
+    ld.add_action(amcl_node_4)  # Added
     ld.add_action(lifecycle_manager_node)
     
     return ld

@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
+
 """
-多机器人定位性能评估节点 (Multi-Robot Pose Evaluation Node)
+Multi-Robot Localization Performance Evaluation Node
 
-功能：
-- 同时记录多个机器人的 Ground Truth 和 AMCL 估计位姿
-- 为每个机器人独立计算位置误差和航向角误差
-- 分别输出每个机器人的误差曲线和统计指标
+Features:
+- Simultaneously record Ground Truth and AMCL estimated poses for multiple robots
+- Independently calculate position error and heading angle error for each robot
+- Output error curves and statistical metrics for each robot separately
 
-订阅话题：
-- /odom, /amcl_pose: 机器人1（无命名空间）
-- /tb3_1/odom, /tb3_1/amcl_pose: 机器人2
+Subscribed Topics:
+- /odom, /amcl_pose: Robot 1 (no namespace)
+- /tb3_1/odom, /tb3_1/amcl_pose: Robot 2
 
-输出文件保存在 ~/ids_roswk/evaluation_results/multibot/
+Output files saved in ~/ids_roswk/evaluation_results/multibot/
 """
-
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
@@ -30,7 +30,7 @@ from typing import List, Optional, Dict
 
 @dataclass
 class PoseRecord:
-    """位姿记录"""
+    """Pose Record"""
     timestamp: float
     x: float
     y: float
@@ -39,7 +39,7 @@ class PoseRecord:
 
 @dataclass
 class ErrorRecord:
-    """误差记录"""
+    """Error Record"""
     timestamp: float
     x_error: float
     y_error: float
@@ -49,7 +49,7 @@ class ErrorRecord:
 
 @dataclass
 class RobotData:
-    """单个机器人的数据存储"""
+    """Data storage for a single robot"""
     namespace: str
     ground_truth_records: List[PoseRecord] = field(default_factory=list)
     amcl_records: List[PoseRecord] = field(default_factory=list)
@@ -60,32 +60,32 @@ class RobotData:
 
 
 class MultiRobotPoseEvalNode(Node):
-    """多机器人定位性能评估节点"""
+    """Multi-Robot Localization Performance Evaluation Node"""
     
-    # 数据保存路径 - multibot子目录
+    # Data save path - multibot subdirectory
     OUTPUT_DIR = os.path.expanduser('~/ids_roswk/evaluation_results/multibot')
     
-    # ========== 机器人命名空间配置 ==========
-    # 与 track_multibot.py 中的配置保持一致
-    # '' (空字符串) = 第一个机器人，无命名空间
-    # 'tb3_1' = 第二个机器人
+    # ========== Robot Namespace Configuration ==========
+    # Consistent with the configuration in track_multibot.py
+    # '' (empty string) = first robot, no namespace
+    # 'tb3_1' = second robot
     ROBOT_NAMESPACES = ['', 'tb3_1']
     # ========================================
     
     def __init__(self):
         super().__init__('multi_robot_pose_eval_node')
         
-        # 为每个机器人创建数据存储
+        # Create data storage for each robot
         self.robots: Dict[str, RobotData] = {}
         
-        # 评估状态
+        # Evaluation status
         self.is_recording = False
         self.start_time: Optional[float] = None
         
-        # 创建输出目录
+        # Create output directory
         os.makedirs(self.OUTPUT_DIR, exist_ok=True)
         
-        # QoS设置
+        # QoS settings
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
@@ -99,17 +99,17 @@ class MultiRobotPoseEvalNode(Node):
             durability=DurabilityPolicy.TRANSIENT_LOCAL
         )
         
-        # 为每个机器人创建订阅
+        # Create subscriptions for each robot
         for ns in self.ROBOT_NAMESPACES:
-            # 用于显示和文件名的标识
+            # Identifier for display and filename
             display_name = ns if ns else 'tb3_0'
             self.robots[display_name] = RobotData(namespace=display_name)
             
-            # 根据命名空间构造话题名
+            # Construct topic names based on namespace
             odom_topic = f'/{ns}/odom' if ns else '/odom'
             amcl_topic = f'/{ns}/amcl_pose' if ns else '/amcl_pose'
             
-            # 订阅 odom 作为 Ground Truth
+            # Subscribe to odom as Ground Truth
             self.create_subscription(
                 Odometry,
                 odom_topic,
@@ -117,7 +117,7 @@ class MultiRobotPoseEvalNode(Node):
                 sensor_qos
             )
             
-            # 订阅 amcl_pose
+            # Subscribe to amcl_pose
             self.create_subscription(
                 PoseWithCovarianceStamped,
                 amcl_topic,
@@ -125,25 +125,25 @@ class MultiRobotPoseEvalNode(Node):
                 reliable_qos
             )
             
-            self.get_logger().info(f'[{display_name}] 订阅话题:')
+            self.get_logger().info(f'[{display_name}] Subscribed to topics:')
             self.get_logger().info(f'  - {odom_topic} (Ground Truth)')
-            self.get_logger().info(f'  - {amcl_topic} (AMCL估计)')
+            self.get_logger().info(f'  - {amcl_topic} (AMCL Estimate)')
         
-        # 定时器：定期计算误差
+        # Timer: periodically calculate errors
         self.eval_timer = self.create_timer(0.1, self.evaluate_errors)  # 10Hz
         
-        # 定时器：定期输出统计信息
-        self.stats_timer = self.create_timer(5.0, self.print_statistics)  # 每5秒
+        # Timer: periodically output statistics
+        self.stats_timer = self.create_timer(5.0, self.print_statistics)  # every 5 seconds
         
         self.get_logger().info('='*60)
-        self.get_logger().info('多机器人定位性能评估节点已启动')
-        self.get_logger().info(f'评估机器人: {list(self.robots.keys())}')
-        self.get_logger().info(f'数据保存目录: {self.OUTPUT_DIR}')
+        self.get_logger().info('Multi-Robot Localization Performance Evaluation Node started')
+        self.get_logger().info(f'Evaluating robots: {list(self.robots.keys())}')
+        self.get_logger().info(f'Data save directory: {self.OUTPUT_DIR}')
         self.get_logger().info('='*60)
-        self.get_logger().info('等待接收位姿数据...')
+        self.get_logger().info('Waiting for pose data...')
     
     def odom_callback(self, msg: Odometry, namespace: str):
-        """处理odom数据作为Ground Truth"""
+        """Process odom data as Ground Truth"""
         robot = self.robots[namespace]
         
         pose = msg.pose.pose
@@ -154,27 +154,27 @@ class MultiRobotPoseEvalNode(Node):
         
         robot.latest_gt = PoseRecord(timestamp, x, y, yaw)
         
-        # 开始记录
+        # Start recording
         if not self.is_recording:
             self.is_recording = True
             self.start_time = timestamp
-            self.get_logger().info('开始记录数据')
+            self.get_logger().info('Started recording data')
         
-        # 保存 Ground Truth 记录
+        # Save Ground Truth record
         robot.ground_truth_records.append(robot.latest_gt)
         
-        # 如果没有AMCL，也用odom作为估计值
+        # If no AMCL, also use odom as estimate
         if not robot.using_amcl:
             robot.latest_amcl = PoseRecord(timestamp, x, y, yaw)
             robot.amcl_records.append(robot.latest_amcl)
     
     def amcl_callback(self, msg: PoseWithCovarianceStamped, namespace: str):
-        """处理AMCL估计位姿"""
+        """Process AMCL estimated pose"""
         robot = self.robots[namespace]
         
         if not robot.using_amcl:
             robot.using_amcl = True
-            self.get_logger().info(f'[{namespace}] 检测到AMCL位姿，使用AMCL作为估计源')
+            self.get_logger().info(f'[{namespace}] Detected AMCL pose, using AMCL as estimate source')
         
         pose = msg.pose.pose
         x = pose.position.x
@@ -188,17 +188,17 @@ class MultiRobotPoseEvalNode(Node):
             robot.amcl_records.append(robot.latest_amcl)
     
     def evaluate_errors(self):
-        """计算各机器人当前误差"""
+        """Calculate current errors for each robot"""
         for ns, robot in self.robots.items():
             if robot.latest_gt is None or robot.latest_amcl is None:
                 continue
             
-            # 时间对齐检查
+            # Time alignment check
             time_diff = abs(robot.latest_gt.timestamp - robot.latest_amcl.timestamp)
             if time_diff > 0.5:
                 continue
             
-            # 计算误差
+            # Calculate errors
             x_error = robot.latest_amcl.x - robot.latest_gt.x
             y_error = robot.latest_amcl.y - robot.latest_gt.y
             position_error = math.sqrt(x_error**2 + y_error**2)
@@ -215,7 +215,7 @@ class MultiRobotPoseEvalNode(Node):
             ))
     
     def print_statistics(self):
-        """输出统计信息"""
+        """Output statistical information"""
         has_data = False
         for robot in self.robots.values():
             if len(robot.error_records) >= 10:
@@ -226,24 +226,24 @@ class MultiRobotPoseEvalNode(Node):
             total_gt = sum(len(r.ground_truth_records) for r in self.robots.values())
             total_est = sum(len(r.amcl_records) for r in self.robots.values())
             total_err = sum(len(r.error_records) for r in self.robots.values())
-            self.get_logger().info(f'数据收集中... GT: {total_gt}, 估计: {total_est}, 误差: {total_err}')
+            self.get_logger().info(f'Collecting data... GT: {total_gt}, Estimates: {total_est}, Errors: {total_err}')
             return
         
         self.get_logger().info('-'*60)
-        self.get_logger().info('【多机器人定位误差统计】')
+        self.get_logger().info('【Multi-Robot Localization Error Statistics】')
         
         for ns, robot in self.robots.items():
             stats = self.calculate_statistics(robot)
             self.get_logger().info(
-                f'  [{ns}] 样本: {stats["count"]}, '
-                f'位置RMSE: {stats["position_rmse"]:.4f}m, '
-                f'航向RMSE: {math.degrees(stats["yaw_rmse"]):.2f}°'
+                f'  [{ns}] Samples: {stats["count"]}, '
+                f'Position RMSE: {stats["position_rmse"]:.4f}m, '
+                f'Heading RMSE: {math.degrees(stats["yaw_rmse"]):.2f}°'
             )
         
         self.get_logger().info('-'*60)
     
     def calculate_statistics(self, robot: RobotData) -> dict:
-        """计算单个机器人的误差统计"""
+        """Calculate error statistics for a single robot"""
         if len(robot.error_records) == 0:
             return {
                 'count': 0,
@@ -257,13 +257,13 @@ class MultiRobotPoseEvalNode(Node):
         
         n = len(robot.error_records)
         
-        # 位置误差
+        # Position error
         position_errors = [e.position_error for e in robot.error_records]
         position_rmse = math.sqrt(sum(e**2 for e in position_errors) / n)
         position_mean = sum(position_errors) / n
         position_max = max(position_errors)
         
-        # 航向角误差
+        # Heading angle error
         yaw_errors = [abs(e.yaw_error) for e in robot.error_records]
         yaw_rmse = math.sqrt(sum(e**2 for e in yaw_errors) / n)
         yaw_mean = sum(yaw_errors) / n
@@ -280,17 +280,17 @@ class MultiRobotPoseEvalNode(Node):
         }
     
     def save_results(self):
-        """保存所有机器人的评估结果"""
+        """Save evaluation results for all robots"""
         timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        self.get_logger().info('\n保存评估结果...')
+        self.get_logger().info('\nSaving evaluation results...')
         
         for ns, robot in self.robots.items():
             if len(robot.error_records) == 0:
-                self.get_logger().warn(f'[{ns}] 没有误差数据，跳过保存')
+                self.get_logger().warn(f'[{ns}] No error data, skipping save')
                 continue
             
-            # 保存误差数据
+            # Save error data
             error_file = os.path.join(self.OUTPUT_DIR, f'{ns}_errors_{timestamp_str}.csv')
             with open(error_file, 'w', newline='') as f:
                 writer = csv.writer(f)
@@ -298,7 +298,7 @@ class MultiRobotPoseEvalNode(Node):
                 for e in robot.error_records:
                     writer.writerow([e.timestamp, e.x_error, e.y_error, e.position_error, e.yaw_error])
             
-            # 保存Ground Truth数据
+            # Save Ground Truth data
             gt_file = os.path.join(self.OUTPUT_DIR, f'{ns}_ground_truth_{timestamp_str}.csv')
             with open(gt_file, 'w', newline='') as f:
                 writer = csv.writer(f)
@@ -306,7 +306,7 @@ class MultiRobotPoseEvalNode(Node):
                 for r in robot.ground_truth_records:
                     writer.writerow([r.timestamp, r.x, r.y, r.yaw])
             
-            # 保存估计位姿数据
+            # Save estimated pose data
             est_file = os.path.join(self.OUTPUT_DIR, f'{ns}_estimated_{timestamp_str}.csv')
             with open(est_file, 'w', newline='') as f:
                 writer = csv.writer(f)
@@ -314,38 +314,38 @@ class MultiRobotPoseEvalNode(Node):
                 for r in robot.amcl_records:
                     writer.writerow([r.timestamp, r.x, r.y, r.yaw])
             
-            # 保存统计结果
+            # Save statistical results
             stats = self.calculate_statistics(robot)
             stats_file = os.path.join(self.OUTPUT_DIR, f'{ns}_statistics_{timestamp_str}.txt')
             with open(stats_file, 'w') as f:
                 f.write('='*50 + '\n')
-                f.write(f'定位性能评估报告 - {ns}\n')
-                f.write(f'时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
+                f.write(f'Localization Performance Evaluation Report - {ns}\n')
+                f.write(f'Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
                 f.write('='*50 + '\n\n')
-                f.write(f'样本数量: {stats["count"]}\n\n')
-                f.write('【位置误差】\n')
+                f.write(f'Sample Count: {stats["count"]}\n\n')
+                f.write('【Position Error】\n')
                 f.write(f'  RMSE: {stats["position_rmse"]:.4f} m\n')
                 f.write(f'  Mean: {stats["position_mean"]:.4f} m\n')
                 f.write(f'  Max:  {stats["position_max"]:.4f} m\n\n')
-                f.write('【航向角误差】\n')
+                f.write('【Heading Angle Error】\n')
                 f.write(f'  RMSE: {math.degrees(stats["yaw_rmse"]):.2f}°\n')
                 f.write(f'  Mean: {math.degrees(stats["yaw_mean"]):.2f}°\n')
                 f.write(f'  Max:  {math.degrees(stats["yaw_max"]):.2f}°\n')
             
-            self.get_logger().info(f'[{ns}] 数据已保存:')
+            self.get_logger().info(f'[{ns}] Data saved:')
             self.get_logger().info(f'  - {os.path.basename(error_file)}')
             self.get_logger().info(f'  - {os.path.basename(gt_file)}')
             self.get_logger().info(f'  - {os.path.basename(est_file)}')
             self.get_logger().info(f'  - {os.path.basename(stats_file)}')
     
     def quaternion_to_yaw(self, q) -> float:
-        """四元数转航向角"""
+        """Convert quaternion to yaw angle"""
         siny_cosp = 2 * (q.w * q.z + q.x * q.y)
         cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
         return math.atan2(siny_cosp, cosy_cosp)
     
     def normalize_angle(self, angle: float) -> float:
-        """将角度归一化到 [-pi, pi]"""
+        """Normalize angle to [-pi, pi]"""
         while angle > math.pi:
             angle -= 2 * math.pi
         while angle < -math.pi:
@@ -360,27 +360,27 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info('\n用户中断，正在保存数据...')
+        node.get_logger().info('\nUser interrupted, saving data...')
     finally:
-        # 保存结果
+        # Save results
         total_errors = sum(len(r.error_records) for r in node.robots.values())
         if total_errors > 0:
             node.save_results()
             
-            # 打印最终统计
+            # Print final statistics
             node.get_logger().info('\n' + '='*60)
-            node.get_logger().info('【最终评估结果】')
+            node.get_logger().info('【Final Evaluation Results】')
             for ns, robot in node.robots.items():
                 stats = node.calculate_statistics(robot)
                 if stats['count'] > 0:
                     node.get_logger().info(
-                        f'  [{ns}] 样本: {stats["count"]}, '
-                        f'位置RMSE: {stats["position_rmse"]:.4f}m, '
-                        f'航向RMSE: {math.degrees(stats["yaw_rmse"]):.2f}°'
+                        f'  [{ns}] Samples: {stats["count"]}, '
+                        f'Position RMSE: {stats["position_rmse"]:.4f}m, '
+                        f'Heading RMSE: {math.degrees(stats["yaw_rmse"]):.2f}°'
                     )
             node.get_logger().info('='*60)
         else:
-            node.get_logger().warn('没有收集到足够的数据')
+            node.get_logger().warn('Not enough data collected')
         
         node.destroy_node()
         rclpy.shutdown()
@@ -388,4 +388,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-RRT (Rapidly-exploring Random Tree) 路径规划算法
-适用于 TurtleBot3 World 六边形地图
+RRT (Rapidly-exploring Random Tree) path planning algorithm
+Suitable for TurtleBot3 World hexagonal map
 
-特点：
-- 固定随机种子，确保相同输入产生相同输出
-- 考虑所有障碍物（圆柱、六边形、墙壁）
-- 可被 track_baseline.py 调用
+Features:
+- Fixed random seed ensures identical output for identical input
+- Considers all obstacles (cylinders, hexagons, walls)
+- Can be called by track_baseline.py
 """
 
 import math
@@ -30,7 +30,7 @@ class Point:
 
 @dataclass
 class CircleObstacle:
-    """圆形障碍物"""
+    """Circular obstacle"""
     x: float
     y: float
     radius: float
@@ -40,7 +40,7 @@ class CircleObstacle:
         return dist < (self.radius + margin)
     
     def intersects_line(self, p1: Point, p2: Point, margin: float = 0.0) -> bool:
-        """检查线段是否与圆形障碍物相交"""
+        """Check if line segment intersects with circular obstacle"""
         dx = p2.x - p1.x
         dy = p2.y - p1.y
         fx = p1.x - self.x
@@ -66,7 +66,7 @@ class CircleObstacle:
 
 
 class RRTNode:
-    """RRT树节点"""
+    """RRT tree node"""
     def __init__(self, point: Point, parent: Optional['RRTNode'] = None):
         self.point = point
         self.parent = parent
@@ -74,33 +74,33 @@ class RRTNode:
 
 class TurtleBot3WorldMap:
     """
-    TurtleBot3 World 地图定义
+    TurtleBot3 World map definition
     
-    地图信息：
-    - 地图范围: X[-2.5, 3.0]m, Y[-2.3, 2.3]m
-    - 中心9个圆柱: 3x3网格在 (±1.1, ±1.1)，半径0.15m
-    - 六边形障碍物:
-      - Head: (3.5, 0), 半径约0.8m
-      - Left Hand: (1.8, 2.7), 半径约0.55m
-      - Right Hand: (1.8, -2.7), 半径约0.55m
-      - Left Foot: (-1.8, 2.7), 半径约0.55m
-      - Right Foot: (-1.8, -2.7), 半径约0.55m
+    Map information:
+    - Map range: X[-2.5, 3.0]m, Y[-2.3, 2.3]m
+    - Center 9 cylinders: 3x3 grid at (±1.1, ±1.1), radius 0.15m
+    - Hexagon obstacles:
+      - Head: (3.5, 0), radius ~0.8m
+      - Left Hand: (1.8, 2.7), radius ~0.55m
+      - Right Hand: (1.8, -2.7), radius ~0.55m
+      - Left Foot: (-1.8, 2.7), radius ~0.55m
+      - Right Foot: (-1.8, -2.7), radius ~0.55m
     """
     
-    # 机器人半径（TurtleBot3 Burger，略大于实际0.09m以增加安全裕度）
+    # Robot radius (TurtleBot3 Burger, slightly larger than actual 0.09m for safety margin)
     ROBOT_RADIUS = 0.22
 
     def __init__(self):
-        # 地图边界
+        # Map boundaries
         self.x_min = -2.5
         self.x_max = 3.0
         self.y_min = -2.3
         self.y_max = 2.3
         
-        # 定义所有障碍物
+        # Define all obstacles
         self.obstacles: List[CircleObstacle] = []
         
-        # 9个圆柱 (3x3网格)，半径0.15m
+        # 9 cylinders (3x3 grid), radius 0.15m
         cylinder_positions = [
             (-1.1, -1.1), (-1.1, 0), (-1.1, 1.1),
             (0, -1.1), (0, 0), (0, 1.1),
@@ -109,7 +109,7 @@ class TurtleBot3WorldMap:
         for x, y in cylinder_positions:
             self.obstacles.append(CircleObstacle(x, y, 0.18))
         
-        # 5个六边形障碍物（用圆形近似）
+        # 5 hexagon obstacles (approximated as circles)
         hexagon_obstacles = [
             (3.5, 0, 0.8),      # Head
             (1.8, 2.7, 0.55),   # Left Hand
@@ -121,7 +121,7 @@ class TurtleBot3WorldMap:
             self.obstacles.append(CircleObstacle(x, y, r))
     
     def is_point_valid(self, p: Point) -> bool:
-        """检查点是否在有效区域内（不碰撞）"""
+        """Check if point is in valid area (no collision)"""
         if not (self.x_min <= p.x <= self.x_max and 
                 self.y_min <= p.y <= self.y_max):
             return False
@@ -133,7 +133,7 @@ class TurtleBot3WorldMap:
         return True
     
     def is_path_valid(self, p1: Point, p2: Point) -> bool:
-        """检查两点之间的路径是否有效"""
+        """Check if path between two points is valid"""
         if not self.is_point_valid(p1) or not self.is_point_valid(p2):
             return False
         
@@ -145,7 +145,7 @@ class TurtleBot3WorldMap:
 
 
 class RRTPlanner:
-    """RRT路径规划器"""
+    """RRT path planner"""
     
     def __init__(self, 
                  world_map: TurtleBot3WorldMap,
@@ -155,15 +155,15 @@ class RRTPlanner:
                  goal_tolerance: float = 0.2,
                  seed: int = 42):
         """
-        初始化RRT规划器
+        Initialize RRT planner
         
         Args:
-            world_map: 地图对象
-            step_size: 每步扩展的最大距离
-            max_iterations: 最大迭代次数
-            goal_sample_rate: 采样目标点的概率
-            goal_tolerance: 到达目标的容差
-            seed: 随机种子（固定以保证可重复性）
+            world_map: Map object
+            step_size: Maximum distance to extend per step
+            max_iterations: Maximum number of iterations
+            goal_sample_rate: Probability of sampling goal point
+            goal_tolerance: Tolerance for reaching goal
+            seed: Random seed (fixed for reproducibility)
         """
         self.map = world_map
         self.step_size = step_size
@@ -175,56 +175,56 @@ class RRTPlanner:
     def plan(self, start: Tuple[float, float], 
              goal: Tuple[float, float]) -> Optional[List[Tuple[float, float]]]:
         """
-        规划从起点到终点的路径
+        Plan path from start to goal
         
         Args:
-            start: 起点坐标 (x, y)
-            goal: 终点坐标 (x, y)
+            start: Start coordinates (x, y)
+            goal: Goal coordinates (x, y)
             
         Returns:
-            路径点列表，如果找不到路径则返回None
+            List of path points, or None if no path found
         """
-        # 固定随机种子
+        # Fix random seed
         random.seed(self.seed)
         
         start_point = Point(start[0], start[1])
         goal_point = Point(goal[0], goal[1])
         
-        # 验证起点和终点
+        # Validate start and goal points
         if not self.map.is_point_valid(start_point):
-            print(f"警告：起点 {start} 在障碍物内或超出边界")
+            print(f"Warning: start point {start} is in obstacle or out of bounds")
             return None
         if not self.map.is_point_valid(goal_point):
-            print(f"警告：终点 {goal} 在障碍物内或超出边界")
+            print(f"Warning: goal point {goal} is in obstacle or out of bounds")
             return None
         
-        # 首先尝试直接连接
+        # Try direct connection first
         if self.map.is_path_valid(start_point, goal_point):
             return [start, goal]
         
-        # 初始化树
+        # Initialize tree
         start_node = RRTNode(start_point)
         nodes = [start_node]
         
         for _ in range(self.max_iterations):
-            # 采样随机点
+            # Sample random point
             if random.random() < self.goal_sample_rate:
                 sample = goal_point
             else:
                 sample = self._random_sample()
             
-            # 找最近节点
+            # Find nearest node
             nearest_node = self._find_nearest(nodes, sample)
             
-            # 向采样点方向扩展
+            # Extend towards sample point
             new_point = self._steer(nearest_node.point, sample)
             
-            # 检查路径是否有效
+            # Check if path is valid
             if self.map.is_path_valid(nearest_node.point, new_point):
                 new_node = RRTNode(new_point, nearest_node)
                 nodes.append(new_node)
                 
-                # 检查是否到达目标
+                # Check if goal is reached
                 if new_point.distance_to(goal_point) < self.goal_tolerance:
                     if self.map.is_path_valid(new_point, goal_point):
                         goal_node = RRTNode(goal_point, new_node)
@@ -232,17 +232,17 @@ class RRTPlanner:
                         path = self._extract_path(goal_node)
                         return self._smooth_path(path)
         
-        print(f"警告：在 {self.max_iterations} 次迭代后未找到路径")
+        print(f"Warning: no path found after {self.max_iterations} iterations")
         return None
     
     def _random_sample(self) -> Point:
-        """在地图范围内随机采样"""
+        """Sample randomly within map bounds"""
         x = random.uniform(self.map.x_min, self.map.x_max)
         y = random.uniform(self.map.y_min, self.map.y_max)
         return Point(x, y)
     
     def _find_nearest(self, nodes: List[RRTNode], point: Point) -> RRTNode:
-        """找到距离采样点最近的节点"""
+        """Find nearest node to sampled point"""
         min_dist = float('inf')
         nearest = nodes[0]
         for node in nodes:
@@ -253,7 +253,7 @@ class RRTPlanner:
         return nearest
     
     def _steer(self, from_point: Point, to_point: Point) -> Point:
-        """从一点向另一点移动，最大距离为step_size"""
+        """Move from one point towards another, max distance step_size"""
         dist = from_point.distance_to(to_point)
         if dist <= self.step_size:
             return to_point
@@ -264,7 +264,7 @@ class RRTPlanner:
         return Point(new_x, new_y)
     
     def _extract_path(self, goal_node: RRTNode) -> List[Tuple[float, float]]:
-        """从目标节点回溯提取路径"""
+        """Backtrack from goal node to extract path"""
         path = []
         node = goal_node
         while node is not None:
@@ -274,7 +274,7 @@ class RRTPlanner:
         return path
     
     def _smooth_path(self, path: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
-        """路径平滑：尝试跳过中间点直接连接"""
+        """Smooth path: try to skip intermediate points by direct connections"""
         if len(path) <= 2:
             return path
         
@@ -299,15 +299,15 @@ def plan_path(start: Tuple[float, float],
               goal: Tuple[float, float],
               seed: int = 42) -> Optional[List[Tuple[float, float]]]:
     """
-    便捷函数：规划单条路径
+    Convenience function: plan a single path
     
     Args:
-        start: 起点 (x, y)
-        goal: 终点 (x, y)
-        seed: 随机种子
+        start: Start point (x, y)
+        goal: Goal point (x, y)
+        seed: Random seed
         
     Returns:
-        路径点列表
+        List of path points
     """
     world_map = TurtleBot3WorldMap()
     planner = RRTPlanner(world_map, seed=seed)
@@ -317,14 +317,14 @@ def plan_path(start: Tuple[float, float],
 def plan_multi_waypoints(waypoints: List[Tuple[float, float]], 
                          seed: int = 42) -> Optional[List[Tuple[float, float]]]:
     """
-    规划经过多个航点的完整路径
+    Plan complete path through multiple waypoints
     
     Args:
-        waypoints: 航点列表 [(x1,y1), (x2,y2), ...]
-        seed: 随机种子
+        waypoints: List of waypoints [(x1,y1), (x2,y2), ...]
+        seed: Random seed
         
     Returns:
-        完整路径点列表
+        Complete path point list
     """
     if len(waypoints) < 2:
         return list(waypoints) if waypoints else []
@@ -338,17 +338,17 @@ def plan_multi_waypoints(waypoints: List[Tuple[float, float]],
         start = waypoints[i]
         goal = waypoints[i + 1]
         
-        # 每段使用不同但可重复的种子
+        # Use different but reproducible seed for each segment
         segment_seed = seed + i * 1000
         planner.seed = segment_seed
         
         segment_path = planner.plan(start, goal)
         
         if segment_path is None:
-            print(f"警告：无法规划从 {start} 到 {goal} 的路径")
+            print(f"Warning: cannot plan path from {start} to {goal}")
             return None
         
-        # 避免重复添加连接点
+        # Avoid duplicating connection points
         if i == 0:
             full_path.extend(segment_path)
         else:
@@ -357,48 +357,47 @@ def plan_multi_waypoints(waypoints: List[Tuple[float, float]],
     return full_path
 
 
-# ==================== 测试代码 ====================
+# ==================== Test Code ====================
 if __name__ == '__main__':
     print("=" * 60)
-    print("TurtleBot3 World RRT 路径规划测试")
+    print("TurtleBot3 World RRT Path Planning Test")
     print("=" * 60)
     
-    # 测试单条路径
-    print("\n[测试1] 单条路径规划")
+    # Test single path
+    print("\n[Test 1] Single path planning")
     start = (-2.0, -0.5)
     goal = (2.0, 1.5)
     
     path = plan_path(start, goal, seed=42)
     
     if path:
-        print(f"✓ 找到路径！共 {len(path)} 个点：")
+        print(f"✓ Path found! Total {len(path)} points:")
         for i, (x, y) in enumerate(path):
             print(f"  [{i}] ({x:.2f}, {y:.2f})")
     else:
-        print("✗ 未找到路径")
+        print("✗ No path found")
     
-    # 测试多航点路径
+    # Test multi-waypoint path
     print("\n" + "=" * 60)
-    print("[测试2] 多航点路径规划")
+    print("[Test 2] Multi-waypoint path planning")
     
     waypoints = [
-        (-2.0, -0.5),  # 起点
-        (2.5, 0.0),    # 右侧
-        (0.0, 2.0),    # 顶部
-        (-2.0, -0.5),  # 返回起点
+        (-2.0, -0.5),  # Start
+        (2.5, 0.0),    # Right side
+        (0.0, 2.0),    # Top
+        (-2.0, -0.5),  # Return to start
     ]
     
-    print(f"关键航点: {waypoints}")
+    print(f"Key waypoints: {waypoints}")
     
     full_path = plan_multi_waypoints(waypoints, seed=42)
     
     if full_path:
-        print(f"\n✓ 找到完整路径！共 {len(full_path)} 个点：")
+        print(f"\n✓ Complete path found! Total {len(full_path)} points:")
         for i, (x, y) in enumerate(full_path):
             print(f"  [{i}] ({x:.2f}, {y:.2f})")
     else:
-        print("✗ 未找到路径")
+        print("✗ No path found")
     
     print("\n" + "=" * 60)
-    print("测试完成")
-
+    print("Test completed")

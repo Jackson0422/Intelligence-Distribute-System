@@ -1,6 +1,6 @@
 # Multi-Robot Collaborative Localization System
 
-[中文](README_CN.md) | [Español](README_ES.md)
+[Requirements](Requirements.md) | [Quick start](QuickStart.md)
 
 ## 📋 Overview
 
@@ -31,112 +31,7 @@ This project implements a **decentralized collaborative localization system** fo
 └──────────────┴───────────────┴───────────────┘
 ```
 
-## 🛠️ Requirements
-
-### Software Dependencies
-
-- **OS**: Ubuntu 22.04 (Jammy)
-- **ROS2**: Humble Hawksbill
-- **Python**: 3.10+
-- **Gazebo**: 11.x
-
-### Python Packages
-
-```bash
-sudo apt install python3-pip
-pip3 install numpy matplotlib pandas
-```
-
-### ROS2 Packages
-
-```bash
-sudo apt install ros-humble-navigation2 \
-                 ros-humble-nav2-bringup \
-                 ros-humble-turtlebot3-gazebo \
-                 ros-humble-tf-transformations
-```
-
-## 📦 Installation
-
-### 1. Clone the Repository
-
-```bash
-cd ~
-git clone <repository-url> ids_roswk
-cd ids_roswk
-```
-
-### 2. Build the Workspace
-
-```bash
-cd ~/ids_roswk
-colcon build --symlink-install
-source install/setup.bash
-```
-
-### 3. Set Environment Variables
-
-Add to your `~/.bashrc`:
-
-```bash
-export TURTLEBOT3_MODEL=waffle
-export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:~/ids_roswk/src/localization_evaluation/models
-source ~/ids_roswk/install/setup.bash
-```
-
-## 🚀 Quick Start
-
-### Running the Complete System (3 Robots)
-
-You need **5 terminals** to run the full collaborative localization system.
-
-#### Terminal 1: Launch Gazebo Simulation
-
-```bash
-cd ~/ids_roswk
-source install/setup.bash
-ros2 launch localization_evaluation multibot_gazebo.launch.py num_robots:=3
-```
-
-**Wait until all robots are spawned in Gazebo before proceeding.**
-
-#### Terminal 2: Launch AMCL Localization
-
-```bash
-cd ~/ids_roswk
-source install/setup.bash
-ros2 launch localization_evaluation amcl_multibot.launch.py num_robots:=3
-```
-
-**Wait for "Managed nodes are active" message.**
-
-#### Terminal 3: Launch Collaborative Localization
-
-```bash
-cd ~/ids_roswk
-source install/setup.bash
-ros2 launch localization_evaluation decentralized_coloc.launch.py num_robots:=3
-```
-
-#### Terminal 4: Launch Evaluation Node
-
-```bash
-cd ~/ids_roswk
-source install/setup.bash
-ros2 run localization_evaluation pose_eval_coloc --ros-args -p num_robots:=3
-```
-
-#### Terminal 5: Launch Robot Controllers
-
-```bash
-cd ~/ids_roswk
-source install/setup.bash
-ros2 run localization_evaluation track_multibot --ros-args -p num_robots:=3
-```
-
-**The robots will now navigate through their predefined waypoints.**
-
-## ⚙️ Configuration
+## Configuration
 
 ### Number of Robots
 
@@ -215,6 +110,7 @@ python3 src/localization_evaluation/localization_evaluation/data_processing_colo
 ```
 
 **Plots generated:**
+
 1. `trajectory_comparison` - Ground truth vs estimated trajectories
 2. `position_error_comparison` - Position error over time
 3. `yaw_error_comparison` - Orientation error over time
@@ -223,6 +119,7 @@ python3 src/localization_evaluation/localization_evaluation/data_processing_colo
 6. `xy_error_scatter` - Spatial distribution of errors
 
 **Output location:**
+
 ```
 ~/ids_roswk/evaluation_results/multibot/coloc/plots/
 ```
@@ -267,6 +164,7 @@ x̂ᶜᵢ(t) = x̂ᵢ(t) + Σⱼ∈Nᵢ Kᵢⱼ(x̂ⱼ(t) − x̂ᵢ(t))
 ```
 
 Where:
+
 - `x̂ᶜᵢ(t)` - Collaborative pose estimate for robot i
 - `x̂ᵢ(t)` - Local AMCL pose estimate
 - `Kᵢⱼ` - Kalman gain (dynamically computed based on covariance)
@@ -286,6 +184,7 @@ Where:
 **Cause**: Terminals not started in correct order or AMCL not initialized.
 
 **Solution**: 
+
 1. Wait for "Managed nodes are active" in Terminal 2
 2. Ensure Terminal 3 is running before Terminal 4
 3. Start Terminal 5 last
@@ -301,6 +200,7 @@ Where:
 **Cause**: Robot radius parameter too small in path planner.
 
 **Solution**: Increase `ROBOT_RADIUS` in `pathplan.py` (line 91):
+
 ```python
 ROBOT_RADIUS = 0.20  # Increase from 0.12 to 0.20
 ```
@@ -310,11 +210,9 @@ ROBOT_RADIUS = 0.20  # Increase from 0.12 to 0.20
 **Cause**: Package not built or environment not sourced.
 
 **Solution**:
+
 ```bash
 cd ~/ids_roswk
 colcon build --packages-select localization_evaluation
 source install/setup.bash
 ```
-
-**Last Updated**: January 2026
-

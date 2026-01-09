@@ -1,15 +1,14 @@
-# 去中心化协同定位系统使用说明
 # Decentralized Collaborative Localization System Usage Guide
 
-## 📋 系统架构
+## 📋 System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Gazebo 仿真环境                               │
+│                    Gazebo simulation environment                │
 │              (multibot_gazebo.launch.py)                        │
 │                                                                 │
-│    TB3_0 (/odom, /scan)        TB3_1 (/tb3_1/odom, /scan)     │
-└────────┬────────────────────────────────┬─────────────────────┘
+│    TB3_0 (/odom, /scan)        TB3_1 (/tb3_1/odom, /scan)        │
+└────────┬────────────────────────────────┬───────────────────────┘
          │                                │
          ▼                                ▼
 ┌────────────────────┐           ┌────────────────────┐
@@ -19,106 +18,108 @@
          │                               │
          ▼                               ▼
 ┌────────────────────┐           ┌────────────────────┐
-│ 协同代理 (TB3_0)    │◄─ Gossip ─►│ 协同代理 (TB3_1)    │
-│ /coloc_belief      │    P2P    │ /tb3_1/coloc_belief│
+│ Collaborative agent│◄─ Gossip ─►│ Collaborative agent│
+│ (TB3_0)            │    P2P    │ (TB3_1)            │
+│ /coloc_belief      │           │ /tb3_1/coloc_belief│
 │ /coloc_pose        │           │ /tb3_1/coloc_pose  │
 └────────┬───────────┘           └───────┬────────────┘
          │                               │
          └───────────────┬───────────────┘
                          ▼
                   ┌─────────────────┐
-                  │ 性能评估节点     │
+                  │ Performance     │
+                  │ evaluation node │
                   │ (pose_eval_coloc)│
                   └─────────────────┘
 ```
 
-## 🚀 快速启动指南
+## 🚀 Quick Start Guide
 
-### 方案1: 基础AMCL定位 (Baseline)
+### Option 1: Baseline AMCL Localization
 
-用于对比实验的基准性能。
+Baseline performance for comparison.
 
 ```bash
-# 终端1: 启动Gazebo仿真
+# Terminal 1: start Gazebo simulation
 cd ~/ids_roswk && source install/setup.bash
 ros2 launch localization_evaluation multibot_gazebo.launch.py
 
-# 终端2: 启动AMCL定位
+# Terminal 2: start AMCL localization
 cd ~/ids_roswk && source install/setup.bash
 ros2 launch localization_evaluation amcl_multibot.launch.py
 
-# 终端3: 启动性能评估
+# Terminal 3: start performance evaluation
 cd ~/ids_roswk && source install/setup.bash
 ros2 run localization_evaluation pose_eval_multibot
 
-# 终端4: 启动轨迹跟踪
+# Terminal 4: start trajectory tracking
 cd ~/ids_roswk && source install/setup.bash
 ros2 run localization_evaluation track_multibot
 
-# 运行2-3分钟后，Ctrl+C停止所有节点
-# 结果保存在: evaluation_results/multibot/
+# After running for 2-3 minutes, Ctrl+C to stop all nodes
+# Results are saved in: evaluation_results/multibot/
 ```
 
-### 方案2: 协同AMCL定位 (Collaborative)
+### Option 2: Collaborative AMCL Localization
 
-增强版，包含去中心化协同定位层。
+Enhanced version with the decentralized collaborative layer.
 
 ```bash
-# 终端1: 启动Gazebo仿真
+# Terminal 1: start Gazebo simulation
 cd ~/ids_roswk && source install/setup.bash
 ros2 launch localization_evaluation multibot_gazebo.launch.py
 
-# 终端2: 启动AMCL定位
+# Terminal 2: start AMCL localization
 cd ~/ids_roswk && source install/setup.bash
 ros2 launch localization_evaluation amcl_multibot.launch.py
 
-# 终端3: 启动协同定位层（新增！）
+# Terminal 3: start the collaborative localization layer (new)
 cd ~/ids_roswk && source install/setup.bash
 ros2 launch localization_evaluation decentralized_coloc.launch.py
 
-# 终端4: 启动协同定位性能评估
+# Terminal 4: start collaborative localization evaluation
 cd ~/ids_roswk && source install/setup.bash
 ros2 run localization_evaluation pose_eval_coloc
 
-# 终端5: 启动轨迹跟踪
+# Terminal 5: start trajectory tracking
 cd ~/ids_roswk && source install/setup.bash
 ros2 run localization_evaluation track_multibot
 
-# 运行2-3分钟后，Ctrl+C停止所有节点
-# 结果保存在: evaluation_results/multibot/coloc/
+# After running for 2-3 minutes, Ctrl+C to stop all nodes
+# Results are saved in: evaluation_results/multibot/coloc/
 ```
 
-## 📊 查看和分析结果
+## 📊 View and Analyze Results
 
-### Baseline结果（基础AMCL）
+### Baseline results (AMCL)
 ```bash
-# 查看最新的统计报告
+# View the latest statistics reports
 cd ~/ids_roswk/evaluation_results/multibot
 ls -lht tb3_*_statistics_*.txt | head -2
-cat tb3_0_statistics_[最新时间戳].txt
-cat tb3_1_statistics_[最新时间戳].txt
+cat tb3_0_statistics_[latest_timestamp].txt
+cat tb3_1_statistics_[latest_timestamp].txt
 
-# 生成可视化图表
+# Generate plots
 cd ~/ids_roswk && source install/setup.bash
-python3 src/localization_evaluation/localization_evaluation/data_processing_multibot.py [时间戳]
+python3 src/localization_evaluation/localization_evaluation/data_processing_multibot.py [timestamp]
 
-# 图表保存在: evaluation_results/multibot/plots/
+# Plots are saved in: evaluation_results/multibot/plots/
 ```
 
-### Collaborative结果（协同AMCL）
+### Collaborative results (Collaborative AMCL)
 ```bash
-# 查看协同定位统计报告
+# View collaborative localization statistics reports
 cd ~/ids_roswk/evaluation_results/multibot/coloc
 ls -lht tb3_*_coloc_statistics_*.txt | head -2
-cat tb3_0_coloc_statistics_[最新时间戳].txt
-cat tb3_1_coloc_statistics_[最新时间戳].txt
+cat tb3_0_coloc_statistics_[latest_timestamp].txt
+cat tb3_1_coloc_statistics_[latest_timestamp].txt
 ```
 
-## 🔧 参数调优
+## 🔧 Parameter Tuning
 
-### 协同定位参数
+### Collaborative localization parameters
 
-编辑 `decentralized_coloc.launch.py` 或通过命令行传递参数：
+Edit `decentralized_coloc.launch.py` or pass parameters on the command line:
 
 ```bash
 ros2 launch localization_evaluation decentralized_coloc.launch.py \
@@ -128,140 +129,139 @@ ros2 launch localization_evaluation decentralized_coloc.launch.py \
     correction_threshold:=0.02
 ```
 
-**参数说明:**
+**Parameter descriptions:**
 
-| 参数 | 默认值 | 说明 |
+| Parameter | Default | Description |
 |------|--------|------|
-| `gossip_rate` | 1.0 Hz | Gossip协议更新频率 |
-| `self_weight` | 0.7 | 自身AMCL估计的权重 (0-1) |
-| `peer_timeout` | 3.0 s | 邻居超时时间 |
-| `correction_threshold` | 0.01 m | 最小修正阈值 |
+| `gossip_rate` | 1.0 Hz | Gossip update rate |
+| `self_weight` | 0.7 | Weight of the robot's own AMCL estimate (0-1) |
+| `peer_timeout` | 3.0 s | Neighbor timeout |
+| `correction_threshold` | 0.01 m | Minimum correction threshold |
 
-**调优建议:**
-- `self_weight` 越高，越信任自己的AMCL估计
-- `gossip_rate` 越高，协同越实时，但通信开销越大
-- 如果环境中传感器噪声大，降低 `self_weight`
-- 如果网络不稳定，增加 `peer_timeout`
+**Tuning tips:**
+- Higher `self_weight` means trusting your own AMCL estimate more.
+- Higher `gossip_rate` improves real-time collaboration but increases communication overhead.
+- If sensor noise is large, reduce `self_weight`.
+- If the network is unstable, increase `peer_timeout`.
 
-## 📈 预期性能对比
+## 📈 Expected Performance Comparison
 
-### Baseline (基础AMCL)
-- **位置RMSE**: 约 6-8 cm
-- **航向角RMSE**: 约 5-8°
-- **特点**: 独立定位，无协同
+### Baseline (AMCL)
+- **Position RMSE**: about 6-8 cm
+- **Yaw RMSE**: about 5-8°
+- **Features**: independent localization, no collaboration
 
-### Collaborative (协同AMCL)
-- **位置RMSE**: 约 4-6 cm (提升20-30%)
-- **航向角RMSE**: 约 3-5° (提升30-40%)
-- **特点**: 
-  - ✓ 去中心化P2P通信
-  - ✓ 多源信息融合
-  - ✓ 更快收敛
-  - ✓ 更强鲁棒性
+### Collaborative (Collaborative AMCL)
+- **Position RMSE**: about 4-6 cm (20-30% improvement)
+- **Yaw RMSE**: about 3-5° (30-40% improvement)
+- **Features**:
+  - ✓ Decentralized P2P communication
+  - ✓ Multi-source information fusion
+  - ✓ Faster convergence
+  - ✓ Stronger robustness
 
-## 🔍 调试和监控
+## 🔍 Debugging and Monitoring
 
-### 查看实时话题
+### View live topics
 ```bash
-# 查看AMCL位姿
+# View AMCL poses
 ros2 topic echo /amcl_pose --once
 ros2 topic echo /tb3_1/amcl_pose --once
 
-# 查看协同定位位姿
+# View collaborative localization poses
 ros2 topic echo /coloc_pose --once
 ros2 topic echo /tb3_1/coloc_pose --once
 
-# 查看belief广播（JSON格式）
+# View belief broadcasts (JSON format)
 ros2 topic echo /coloc_belief
 ros2 topic echo /tb3_1/coloc_belief
 ```
 
-### 查看节点状态
+### View node status
 ```bash
-# 查看所有运行的节点
+# List all running nodes
 ros2 node list | grep -E "amcl|coloc"
 
-# 查看协同代理的日志
+# View collaborative agent logs
 ros2 run localization_evaluation decentralized_coloc_agent --ros-args --log-level debug
 ```
 
-## 🧪 实验建议
+## 🧪 Experiment Suggestions
 
-### 对比实验步骤
+### Comparison experiment steps
 
-1. **第一次运行 - Baseline**
-   - 运行基础AMCL 2-3分钟
-   - 记录时间戳
-   - 停止所有节点
+1. **First run - Baseline**
+   - Run baseline AMCL for 2-3 minutes.
+   - Record the timestamp.
+   - Stop all nodes.
 
-2. **第二次运行 - Collaborative**
-   - 完全重启系统（关闭Gazebo）
-   - 运行AMCL + 协同层 2-3分钟
-   - 记录时间戳
-   - 停止所有节点
+2. **Second run - Collaborative**
+   - Fully restart the system (close Gazebo).
+   - Run AMCL + collaboration layer for 2-3 minutes.
+   - Record the timestamp.
+   - Stop all nodes.
 
-3. **对比分析**
-   - 比较两次实验的RMSE
-   - 计算性能提升百分比
-   - 分析误差分布差异
+3. **Comparison analysis**
+   - Compare RMSE between the two runs.
+   - Compute performance improvement percentage.
+   - Analyze differences in error distributions.
 
-### 实验注意事项
+### Experiment notes
 
-⚠️ **每次实验前务必:**
-1. 完全关闭Gazebo
-2. 清理ROS进程: `pkill -9 -f "gazebo|ros2"`
-3. 重新启动所有节点
-4. 确保机器人从相同初始位置开始
+⚠️ **Before each experiment:**
+1. Fully close Gazebo.
+2. Clean ROS processes: `pkill -9 -f "gazebo|ros2"`
+3. Restart all nodes.
+4. Ensure robots start from the same initial positions.
 
-## 🎓 课程项目报告要点
+## 🎓 Course Project Report Highlights
 
-适合"分布式智能系统"课程的报告内容：
+Recommended topics for the "Distributed Intelligent Systems" course report:
 
-### 1. 系统设计
-- 去中心化架构 (无中心节点)
-- P2P通信机制 (ROS2 topic)
-- Gossip协议实现
-- 加权共识算法
+### 1. System design
+- Decentralized architecture (no central node)
+- P2P communication mechanism (ROS2 topics)
+- Gossip protocol implementation
+- Weighted consensus algorithm
 
-### 2. 关键技术
-- **分布式共识**: 每个机器人维护自己的belief，通过Gossip达成共识
-- **容错性**: 邻居超时机制，一个机器人故障不影响其他
-- **可扩展性**: 可轻松扩展到N个机器人
-- **实时性**: 1Hz更新频率
+### 2. Key techniques
+- **Distributed consensus**: each robot maintains its own belief, reaching consensus via Gossip.
+- **Fault tolerance**: neighbor timeout mechanism; one robot failure does not affect others.
+- **Scalability**: easy to extend to N robots.
+- **Real-time**: 1 Hz update rate.
 
-### 3. 性能评估
-- 对比Baseline vs Collaborative的定位精度
-- 分析协同带来的性能提升
-- 讨论权重参数对性能的影响
-- 评估通信开销
+### 3. Performance evaluation
+- Compare localization accuracy of Baseline vs Collaborative.
+- Analyze the performance gains from collaboration.
+- Discuss the impact of weight parameters on performance.
+- Evaluate communication overhead.
 
-### 4. 未来改进方向
-- 动态权重调整（根据协方差自适应）
-- 更复杂的融合算法（卡尔曼滤波）
-- 多跳通信（间接邻居）
-- 异构机器人协同
+### 4. Future improvements
+- Dynamic weight adjustment (adaptive by covariance)
+- More advanced fusion algorithms (Kalman filtering)
+- Multi-hop communication (indirect neighbors)
+- Heterogeneous robot collaboration
 
-## ❓ 常见问题
+## ❓ FAQ
 
-**Q: 协同定位节点启动后没有输出？**
-A: 确保AMCL已经启动并发布位姿。协同代理需要先接收AMCL位姿才能工作。
+**Q: The collaborative localization node starts but prints no output?**
+A: Make sure AMCL is running and publishing poses. The collaborative agent needs AMCL poses to start working.
 
-**Q: 看到 "邻居超时" 警告？**
-A: 检查另一个机器人的协同代理是否正常运行，或增加 `peer_timeout` 参数。
+**Q: I see "neighbor timeout" warnings?**
+A: Check whether the other robot's collaborative agent is running, or increase the `peer_timeout` parameter.
 
-**Q: 协同定位后误差反而变大？**
-A: 可能是 `self_weight` 设置过低。尝试增加到0.8，更信任自己的AMCL估计。
+**Q: The error gets worse after collaboration?**
+A: `self_weight` may be too low. Try increasing it to 0.8 to trust your own AMCL estimate more.
 
-**Q: 如何扩展到3个或更多机器人？**
-A: 修改launch文件，添加更多 `agent` 节点，并正确设置 `peer_ids` 参数。
+**Q: How do I scale to 3 or more robots?**
+A: Modify the launch file, add more `agent` nodes, and set `peer_ids` correctly.
 
-## 📞 技术支持
+## 📞 Support
 
-遇到问题？检查以下内容：
-1. ROS2环境已正确source
-2. 所有必要的节点都在运行
-3. 话题连接正常 (`ros2 topic list`)
-4. 日志输出无错误信息
+Having issues? Check the following:
+1. ROS2 environment is sourced correctly.
+2. All required nodes are running.
+3. Topic connections are healthy (`ros2 topic list`).
+4. Logs show no errors.
 
-祝实验顺利！🎉
-
+Good luck with the experiments! 🎉
