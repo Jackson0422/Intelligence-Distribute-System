@@ -158,6 +158,10 @@ class PoseEvalColoc(Node):
                 'will continue but error calculation may fail'
             )
             self.tf_ready = True  # Force continue to avoid permanent blocking
+            # Option A: Stop the node completely
+            # self.get_logger().fatal('TF timeout, shutting down...')
+            # rclpy.shutdown()
+
             self.tf_check_timer.cancel()
 
     def pose_in_frame(self, pose_with_cov: PoseWithCovarianceStamped, target_frame: str):

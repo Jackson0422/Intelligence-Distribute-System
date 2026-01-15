@@ -203,13 +203,13 @@ class PoseEvalNode(Node):
         stats = self.calculate_statistics()
         
         self.get_logger().info('-'*50)
-        self.get_logger().info(f'【Localization Error Statistics】 (Sample count: {stats["count"]})')
+        self.get_logger().info(f'[Localization Error Statistics] (Sample count: {stats["count"]})')
         self.get_logger().info(f'  Position RMSE: {stats["position_rmse"]:.4f} m')
         self.get_logger().info(f'  Position Mean: {stats["position_mean"]:.4f} m')
         self.get_logger().info(f'  Position Max:  {stats["position_max"]:.4f} m')
-        self.get_logger().info(f'  Heading RMSE:   {math.degrees(stats["yaw_rmse"]):.2f}°')
-        self.get_logger().info(f'  Heading Mean:   {math.degrees(stats["yaw_mean"]):.2f}°')
-        self.get_logger().info(f'  Heading Max:    {math.degrees(stats["yaw_max"]):.2f}°')
+        self.get_logger().info(f'  Heading RMSE:   {math.degrees(stats["yaw_rmse"]):.2f} deg')
+        self.get_logger().info(f'  Heading Mean:   {math.degrees(stats["yaw_mean"]):.2f} deg')
+        self.get_logger().info(f'  Heading Max:    {math.degrees(stats["yaw_max"]):.2f} deg')
         self.get_logger().info('-'*50)
 
     def calculate_statistics(self) -> dict:
@@ -286,14 +286,14 @@ class PoseEvalNode(Node):
             f.write(f'Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
             f.write('='*50 + '\n\n')
             f.write(f'Number of samples: {stats["count"]}\n\n')
-            f.write('【Position Error】\n')
+            f.write('[Position Error]\n')
             f.write(f'  RMSE: {stats["position_rmse"]:.4f} m\n')
             f.write(f'  Mean: {stats["position_mean"]:.4f} m\n')
             f.write(f'  Max:  {stats["position_max"]:.4f} m\n\n')
-            f.write('【Heading Error】\n')
-            f.write(f'  RMSE: {math.degrees(stats["yaw_rmse"]):.2f}°\n')
-            f.write(f'  Mean: {math.degrees(stats["yaw_mean"]):.2f}°\n')
-            f.write(f'  Max:  {math.degrees(stats["yaw_max"]):.2f}°\n')
+            f.write('[Heading Error]\n')
+            f.write(f'  RMSE: {math.degrees(stats["yaw_rmse"]):.2f} deg\n')
+            f.write(f'  Mean: {math.degrees(stats["yaw_mean"]):.2f} deg\n')
+            f.write(f'  Max:  {math.degrees(stats["yaw_max"]):.2f} deg\n')
         
         self.get_logger().info(f'Results have been saved to: {self.OUTPUT_DIR}')
         self.get_logger().info(f'  - {os.path.basename(error_file)}')
@@ -330,11 +330,11 @@ def main(args=None):
             node.save_results()
             # Print final statistics
             node.get_logger().info('\n' + '='*60)
-            node.get_logger().info('【Final Evaluation Results】')
+            node.get_logger().info('[Final Evaluation Results]')
             stats = node.calculate_statistics()
             node.get_logger().info(f'  Total samples: {stats["count"]}')
             node.get_logger().info(f'  Position RMSE: {stats["position_rmse"]:.4f} m')
-            node.get_logger().info(f'  Heading RMSE: {math.degrees(stats["yaw_rmse"]):.2f}°')
+            node.get_logger().info(f'  Heading RMSE: {math.degrees(stats["yaw_rmse"]):.2f} deg')
             node.get_logger().info('='*60)
         else:
             node.get_logger().warn('Not enough data was collected.')
@@ -345,4 +345,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-

@@ -115,7 +115,7 @@ controller_server:
     goal_checker:
       stateful: true
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.25需要完整 Nav2 导航
+      xy_goal_tolerance: 0.25 # Needs complete Nav2 navigation
       debug_trajectory_details: true
       min_vel_x: 0.0
       min_vel_y: 0.0

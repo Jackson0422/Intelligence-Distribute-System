@@ -88,7 +88,7 @@ class TurtleBot3WorldMap:
     """
     
     # Robot radius (TurtleBot3 Burger, slightly larger than actual 0.09m for safety margin)
-    ROBOT_RADIUS = 0.22
+    ROBOT_RADIUS = 0.1 # Changed to be the same as nav2_params
 
     def __init__(self):
         # Map boundaries

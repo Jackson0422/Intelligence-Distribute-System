@@ -1,0 +1,19 @@
+/**:
+  ros__parameters:
+    # --- Odometry Sensor Model ---
+    # Uncertainty from wheel encoders, primarily affecting position.
+    
+    # Standard deviation of Gaussian noise for position (meters)
+    odometry_position_uncertainty: 0.01
+    
+    # Systematic rotation bias (radians) - simulates encoder drift
+    odometry_rotation_bias: 0.005
+
+    # --- IMU Sensor Model ---
+    # Uncertainty from the Inertial Measurement Unit, primarily affecting orientation.
+    
+    # Standard deviation of Gaussian noise for orientation (radians)
+    imu_orientation_uncertainty: 0.005
+    
+    # Systematic bias for orientation (radians)
+    imu_orientation_bias: 0.01

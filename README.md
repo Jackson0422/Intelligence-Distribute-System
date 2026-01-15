@@ -8,12 +8,12 @@ This project implements a **decentralized collaborative localization system** fo
 
 ### Key Features
 
-- ✅ **Multi-robot support**: 2-4 TurtleBot3 robots
-- ✅ **Decentralized architecture**: No central coordinator required
-- ✅ **Collaborative localization**: Robots share pose information to improve accuracy
-- ✅ **RRT path planning**: Collision-free trajectory generation
-- ✅ **Real-time evaluation**: Position and orientation error tracking
-- ✅ **Data visualization**: Comprehensive plotting tools for performance analysis
+- **Multi-robot support**: 2-4 TurtleBot3 robots
+- **Decentralized architecture**: No central coordinator required
+- **Collaborative localization**: Robots share pose information to improve accuracy
+- **RRT path planning**: Collision-free trajectory generation
+- **Real-time evaluation**: Position and orientation error tracking
+- **Data visualization**: Comprehensive plotting tools for performance analysis
 
 ### System Architecture
 

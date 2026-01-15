@@ -22,6 +22,7 @@ from nav_msgs.msg import Odometry
 import math
 import time
 import threading
+import random
 
 from localization_evaluation.pathplan import plan_multi_waypoints, TurtleBot3WorldMap
 
@@ -29,7 +30,11 @@ from localization_evaluation.pathplan import plan_multi_waypoints, TurtleBot3Wor
 class RobotController:
     """Single Robot Controller"""
     
-    def __init__(self, node, namespace, start_pos, waypoints, seed=42):
+    def __init__(self, node, namespace, start_pos, waypoints, seed=42, 
+                 odometry_position_uncertainty: float = 0.0, 
+                 imu_orientation_uncertainty: float = 0.0,
+                 odometry_rotation_bias: float = 0.0,
+                 imu_orientation_bias: float = 0.0):
         """
         Initializes the robot controller.
         
@@ -39,6 +44,10 @@ class RobotController:
             start_pos: The starting position (x, y).
             waypoints: A list of key waypoints.
             seed: The random seed for RRT.
+            odometry_position_uncertainty: Standard deviation for position noise.
+            imu_orientation_uncertainty: Standard deviation for orientation noise.
+            odometry_rotation_bias: Bias for rotation (odometry).
+            imu_orientation_bias: Bias for orientation.
         """
         self.node = node
         self.namespace = namespace
@@ -48,7 +57,12 @@ class RobotController:
         self.current_yaw = 0.0
         self.key_waypoints = waypoints
         self.seed = seed
+        self.odometry_position_uncertainty = odometry_position_uncertainty
+        self.imu_orientation_uncertainty = imu_orientation_uncertainty
+        self.odometry_rotation_bias = odometry_rotation_bias
+        self.imu_orientation_bias = imu_orientation_bias
         
+        self.world_map = TurtleBot3WorldMap()
         # Motion parameters
         self.linear_speed = 0.15   # Linear speed in m/s
         self.angular_speed = 0.5   # Angular speed in rad/s
@@ -79,6 +93,15 @@ class RobotController:
         node.get_logger().info(f'[{self.display_name}] Publishing to topic: {cmd_vel_topic}')
         node.get_logger().info(f'[{self.display_name}] Subscribed to topic: {odom_topic}')
         node.get_logger().info(f'[{self.display_name}] Starting position: ({self.start_x:.2f}, {self.start_y:.2f})')
+        if self.odometry_position_uncertainty > 0.0 or self.imu_orientation_uncertainty > 0.0 or \
+           self.odometry_rotation_bias != 0.0 or self.imu_orientation_bias != 0.0:
+            node.get_logger().info(
+                f'[{self.display_name}] Sensor error model enabled: \n'
+                f'    Odometry Uncertainty: pos_stddev={self.odometry_position_uncertainty:.4f}m\n'
+                f'    Odometry Rotation Bias: {self.odometry_rotation_bias:.4f}rad\n'
+                f'    IMU Uncertainty: orient_stddev={self.imu_orientation_uncertainty:.4f}rad\n'
+                f'    IMU Bias: orient={self.imu_orientation_bias:.4f}rad'
+            )
     
     def quaternion_to_euler(self, x, y, z, w):
         """Converts a quaternion to a Euler angle (yaw)."""
@@ -89,15 +112,33 @@ class RobotController:
     
     def odom_callback(self, msg):
         """Odometry callback function - updates the robot's current position."""
-        # Extract position
-        self.odom_x = msg.pose.pose.position.x
-        self.odom_y = msg.pose.pose.position.y
-        
+        # Get ground truth position from message
+        true_x = msg.pose.pose.position.x
+        true_y = msg.pose.pose.position.y
+
+        # Add odometry noise to simulate sensor uncertainty
+        if self.odometry_position_uncertainty > 0.0:
+            self.odom_x = true_x + random.gauss(0, self.odometry_position_uncertainty)
+            self.odom_y = true_y + random.gauss(0, self.odometry_position_uncertainty)
+        else:
+            self.odom_x = true_x
+            self.odom_y = true_y
+
         # Extract orientation (quaternion to Euler)
         orientation = msg.pose.pose.orientation
-        self.odom_yaw = self.quaternion_to_euler(
+        original_yaw = self.quaternion_to_euler(
             orientation.x, orientation.y, orientation.z, orientation.w
         )
+
+        # Add biases (Odometry rotation bias + IMU bias)
+        biased_yaw = original_yaw + self.odometry_rotation_bias + self.imu_orientation_bias
+
+        # Add IMU noise
+        if self.imu_orientation_uncertainty > 0.0:
+            noise_yaw = random.gauss(0, self.imu_orientation_uncertainty)
+            self.odom_yaw = self.normalize_angle(biased_yaw + noise_yaw)
+        else:
+            self.odom_yaw = self.normalize_angle(biased_yaw)
         
         self.odom_received = True
     
@@ -140,22 +181,6 @@ class RobotController:
             )
             
             self.navigate_to_point(x, y)
-            
-            # ========== Display Position After Arrival ==========
-            self.node.get_logger().info(
-                f'[{self.display_name}]   Arrival position: ({self.current_x:.3f}, {self.current_y:.3f}, {self.current_yaw:.2f}rad)'
-            )
-            
-            # ========== Calculate Position Error ==========
-            error = math.sqrt((self.current_x - x)**2 + (self.current_y - y)**2)
-            if error > 0.1:
-                self.node.get_logger().warn(
-                    f'[{self.display_name}]   ⚠️ Position error: {error:.3f}m (Large deviation from target!)'
-                )
-            else:
-                self.node.get_logger().info(
-                    f'[{self.display_name}]   ✓ Position error: {error:.3f}m'
-                )
             
             self.stop_robot()
             time.sleep(0.3)
@@ -211,41 +236,9 @@ class RobotController:
         # Check for obstacles upon arrival
         self.check_obstacle_clearance(self.current_x, self.current_y)
     
-    def navigate_to_point_openloop(self, target_x, target_y):
-        """Navigate to a target point (using dead reckoning - open-loop control, backup method)."""
-        dx = target_x - self.current_x
-        dy = target_y - self.current_y
-        distance = math.sqrt(dx**2 + dy**2)
-        target_yaw = math.atan2(dy, dx)
-        
-        # ========== Check for Obstacles Before Departure ==========
-        self.node.get_logger().info(f'[{self.display_name}]   Checking before departure:')
-        self.check_obstacle_clearance(self.current_x, self.current_y)
-        
-        # Calculate the angle to turn
-        angle_diff = self.normalize_angle(target_yaw - self.current_yaw)
-        
-        # 1. First, turn towards the target direction
-        if abs(angle_diff) > 0.05:
-            self.turn_angle(angle_diff)
-        
-        # 2. Then, move straight to the target point
-        if distance > 0.02:
-            self.move_distance(distance)
-        
-        # Update the current position
-        self.current_x = target_x
-        self.current_y = target_y
-        self.current_yaw = target_yaw
-        
-        # ========== Check for Obstacles After Arrival ==========
-        self.node.get_logger().info(f'[{self.display_name}]   Checking after arrival:')
-        self.check_obstacle_clearance(self.current_x, self.current_y)
-    
     def turn_angle(self, angle):
         """Rotates in place by a specified angle (in radians)."""
         twist = Twist()
-        
         if angle > 0:
             twist.angular.z = self.angular_speed
         else:
@@ -296,12 +289,11 @@ class RobotController:
     
     def check_obstacle_clearance(self, x, y):
         """Checks the distance from the current position to obstacles."""
-        world_map = TurtleBot3WorldMap()
-        
+        world_map = self.world_map
         min_distance = float('inf')
         closest_obstacle = None
         
-        for idx, obs in enumerate(world_map.obstacles):
+        for obs in world_map.obstacles:
             dist = math.sqrt((x - obs.x)**2 + (y - obs.y)**2)
             actual_clearance = dist - obs.radius  # Surface distance
             
@@ -396,7 +388,18 @@ class MultiRobotTrackPublisher(Node):
         # Declare parameter: number of robots (default 2, maintains existing behavior)
         self.declare_parameter('num_robots', 2)
         num_robots = self.get_parameter('num_robots').value
+
+        # Declare parameters for sensor uncertainty and bias
+        self.declare_parameter('odometry_position_uncertainty', 0.0)
+        self.declare_parameter('imu_orientation_uncertainty', 0.0)
+        self.declare_parameter('odometry_rotation_bias', 0.0)
+        self.declare_parameter('imu_orientation_bias', 0.0)
         
+        odometry_position_uncertainty = self.get_parameter('odometry_position_uncertainty').value
+        imu_orientation_uncertainty = self.get_parameter('imu_orientation_uncertainty').value
+        odometry_rotation_bias = self.get_parameter('odometry_rotation_bias').value
+        imu_orientation_bias = self.get_parameter('imu_orientation_bias').value
+
         # Validate parameter
         if num_robots < 1 or num_robots > 4:
             self.get_logger().error(f'Number of robots must be between 1 and 4, but is: {num_robots}')
@@ -422,7 +425,11 @@ class MultiRobotTrackPublisher(Node):
                 namespace=name,
                 start_pos=config['start'],
                 waypoints=config['waypoints'],
-                seed=config['seed']
+                seed=config['seed'],
+                odometry_position_uncertainty=odometry_position_uncertainty,
+                imu_orientation_uncertainty=imu_orientation_uncertainty,
+                odometry_rotation_bias=odometry_rotation_bias,
+                imu_orientation_bias=imu_orientation_bias
             )
         
         self.get_logger().info('='*60)
@@ -486,4 +493,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-
