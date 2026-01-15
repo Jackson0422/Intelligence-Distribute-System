@@ -54,10 +54,10 @@ Defined in `multibot_gazebo.launch.py`:
 
 | Robot  | Position (x, y) | Orientation (yaw) |
 |--------|-----------------|-------------------|
-| TB3_0  | (-2.0, -0.5)   | 0.0 rad          |
-| TB3_1  | (0.0, 0.5)     | 0.0 rad          |
-| TB3_2  | (-1.0, -1.5)   | 0.0 rad          |
-| TB3_3  | (2.0, 0.0)     | 0.0 rad          |
+| tb3_1  | (-2.0, -0.5)   | 0.0 rad          |
+| tb3_2  | (0.0, 0.5)     | 0.0 rad          |
+| tb3_3  | (-1.0, -1.5)   | 0.0 rad          |
+| tb3_4  | (2.0, 0.0)     | 0.0 rad          |
 
 ### Waypoints
 
@@ -65,19 +65,19 @@ Defined in `track_multibot.py` (lines 361-393):
 
 ```python
 ALL_ROBOTS_CONFIG = {
-    'tb3_0': {
+    'tb3_1': {
         'start': (-2.0, -0.5),
         'waypoints': [(-2.0, -0.5), (-1.0, -0.5), (-1.0, 0.5), (0.0, 2.0)]
     },
-    'tb3_1': {
+    'tb3_2': {
         'start': (0.0, 0.5),
         'waypoints': [(0.0, 0.5), (1.0, 0.5), (1.0, -0.5), (0.0, -2.0)]
     },
-    'tb3_2': {
+    'tb3_3': {
         'start': (-1.0, -1.5),
         'waypoints': [(-1.0, -1.5), (-2.0, -0.5), (-2.0, 0.5), (0.0, 2.0)]
     },
-    'tb3_3': {
+    'tb3_4': {
         'start': (2.0, 0.0),
         'waypoints': [(2.0, 0.0), (2.0, -1.0), (1.0, -1.5), (0.0, -2.0)]
     }
@@ -140,14 +140,14 @@ ids_roswk/
 │   │   ├── pathplan.py                     # RRT path planner
 │   │   └── data_processing_coloc.py        # Data visualization
 │   ├── param/
-│   │   ├── nav2_params_tb3_0.yaml          # AMCL parameters
-│   │   ├── nav2_params_tb3_1.yaml
+│   │   ├── nav2_params_tb3_1.yaml          # AMCL parameters
 │   │   ├── nav2_params_tb3_2.yaml
-│   │   └── nav2_params_tb3_3.yaml
+│   │   ├── nav2_params_tb3_3.yaml
+│   │   └── nav2_params_tb3_4.yaml
 │   ├── models/
-│   │   ├── tb3_1/model.sdf                 # Robot models
-│   │   ├── tb3_2/model.sdf
-│   │   └── tb3_3/model.sdf
+│   │   ├── tb3_2/model.sdf                 # Robot models
+│   │   ├── tb3_3/model.sdf
+│   │   └── tb3_4/model.sdf
 │   └── maps/
 │       └── map.yaml                        # Environment map
 └── evaluation_results/                     # Output data

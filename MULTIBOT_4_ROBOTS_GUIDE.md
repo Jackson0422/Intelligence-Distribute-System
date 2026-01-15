@@ -16,10 +16,10 @@ This update extends the system from 2 robots to 2-4 robots, with runtime control
 
 | Robot | Namespace | Spawn position | Waypoints |
 |--------|---------|--------|--------|
-| **tb3_0** | `` (empty) | (-2.0, -0.5) | unchanged |
-| **tb3_1** | `tb3_1` | (0.0, 0.5) | unchanged |
-| **tb3_2** | `tb3_2` | **(-1.0, -1.5)** | (-1.0, -1.5) → (-2.0, -0.5) → (-2.0, 0.5) → (0.0, 2.0) |
-| **tb3_3** | `tb3_3` | **(2.0, 0.0)** | (2.0, 0.0) → (2.0, -1.0) → (1.0, -1.5) → (0.0, -2.0) |
+| **tb3_1** | `` (empty) | (-2.0, -0.5) | unchanged |
+| **tb3_2** | `tb3_2` | (0.0, 0.5) | unchanged |
+| **tb3_3** | `tb3_3` | **(-1.0, -1.5)** | (-1.0, -1.5) → (-2.0, -0.5) → (-2.0, 0.5) → (0.0, 2.0) |
+| **tb3_4** | `tb3_4` | **(2.0, 0.0)** | (2.0, 0.0) → (2.0, -1.0) → (1.0, -1.5) → (0.0, -2.0) |
 
 ---
 
@@ -29,7 +29,7 @@ This update extends the system from 2 robots to 2-4 robots, with runtime control
 
 **All launch files now support the `num_robots` parameter!**
 
-#### Default: 2 robots (tb3_0 + tb3_1)
+#### Default: 2 robots (tb3_1 + tb3_2)
 
 ```bash
 # 1. Start Gazebo (default 2 robots)
@@ -86,22 +86,22 @@ ros2 run localization_evaluation pose_eval_coloc
 
 ### Python code
 
-- ✅ `localization_evaluation/track_multibot.py` - add tb3_2 and tb3_3 configs, support parameter selection (`num_robots`)
+- ✅ `localization_evaluation/track_multibot.py` - add tb3_3 and tb3_4 configs, support parameter selection (`num_robots`)
 - ✅ `localization_evaluation/pose_eval_coloc.py` - **v2.1 new**: dynamic evaluation for 2-4 robots (`num_robots` parameter)
-- ✅ `localization_evaluation/decentralized_coloc_agent.py` - add TF frame handling (compatible with tb3_0 naming)
+- ✅ `localization_evaluation/decentralized_coloc_agent.py` - add TF frame handling (compatible with tb3_1 naming)
 
 ### Launch files
-- ✅ `launch/decentralized_coloc.launch.py` - add tb3_2 and tb3_3 collaborative nodes, conditional startup (`num_robots`)
-- ✅ `launch/multibot_gazebo.launch.py` - add tb3_2 and tb3_3 spawn configs, conditional startup (`num_robots`)
-- ✅ `launch/amcl_multibot.launch.py` - add tb3_2 and tb3_3 AMCL nodes, conditional startup (`num_robots`)
+- ✅ `launch/decentralized_coloc.launch.py` - add tb3_3 and tb3_4 collaborative nodes, conditional startup (`num_robots`)
+- ✅ `launch/multibot_gazebo.launch.py` - add tb3_3 and tb3_4 spawn configs, conditional startup (`num_robots`)
+- ✅ `launch/amcl_multibot.launch.py` - add tb3_3 and tb3_4 AMCL nodes, conditional startup (`num_robots`)
 
 ### Model files (new)
-- 🆕 `models/tb3_2/model.sdf` - Gazebo model for tb3_2
 - 🆕 `models/tb3_3/model.sdf` - Gazebo model for tb3_3
+- 🆕 `models/tb3_4/model.sdf` - Gazebo model for tb3_4
 
 ### Parameter files (new)
-- 🆕 `param/nav2_params_tb3_2.yaml` - AMCL params for tb3_2
 - 🆕 `param/nav2_params_tb3_3.yaml` - AMCL params for tb3_3
+- 🆕 `param/nav2_params_tb3_4.yaml` - AMCL params for tb3_4
 
 ---
 
@@ -109,12 +109,12 @@ ros2 run localization_evaluation pose_eval_coloc
 
 ### ✅ Fully backward compatible
 - Default behavior unchanged (2 robots)
-- Existing tb3_0 and tb3_1 configs are untouched
+- Existing tb3_1 and tb3_2 configs are untouched
 - Select the run size via parameters
 
 ### ✅ Coordinate frames
-- tb3_0: `base_footprint` (no prefix, unchanged)
-- tb3_1/tb3_2/tb3_3: `tb3_X/base_footprint` (prefixed)
+- tb3_1: `base_footprint` (no prefix, unchanged)
+- tb3_2/tb3_3/tb3_4: `tb3_X/base_footprint` (prefixed)
 - TF lookup automatically handles naming differences
 
 ### ✅ Collaborative localization
@@ -128,18 +128,18 @@ ros2 run localization_evaluation pose_eval_coloc
 
 ```
 /map (global shared)
-├── /base_footprint (tb3_0)
+├── /base_footprint (tb3_1)
 │   ├── /base_link
 │   └── /base_scan
-├── /tb3_1/base_footprint (tb3_1)
-│   ├── /tb3_1/base_link
-│   └── /tb3_1/base_scan
-├── /tb3_2/base_footprint (tb3_2) <- new
+├── /tb3_2/base_footprint (tb3_2)
 │   ├── /tb3_2/base_link
 │   └── /tb3_2/base_scan
-└── /tb3_3/base_footprint (tb3_3) <- new
-    ├── /tb3_3/base_link
-    └── /tb3_3/base_scan
+├── /tb3_3/base_footprint (tb3_3) <- new
+│   ├── /tb3_3/base_link
+│   └── /tb3_3/base_scan
+└── /tb3_4/base_footprint (tb3_4) <- new
+    ├── /tb3_4/base_link
+    └── /tb3_4/base_scan
 ```
 
 ---
@@ -172,9 +172,9 @@ ros2 node list
 
 | num_robots parameter | Robots started | Description | Command syntax |
 |--------------|-----------|-----|---------|
-| `2` (default)   | tb3_0, tb3_1 | Fully matches the original system | param optional |
-| `3`          | tb3_0, tb3_1, tb3_2 | Adds the 3rd robot | launch uses `:=`, run uses `-p` |
-| `4`          | tb3_0, tb3_1, tb3_2, tb3_3 | All 4 robots | launch uses `:=`, run uses `-p` |
+| `2` (default)   | tb3_1, tb3_2 | Fully matches the original system | param optional |
+| `3`          | tb3_1, tb3_2, tb3_3 | Adds the 3rd robot | launch uses `:=`, run uses `-p` |
+| `4`          | tb3_1, tb3_2, tb3_3, tb3_4 | All 4 robots | launch uses `:=`, run uses `-p` |
 
 ### 🔤 Command syntax reference
 
@@ -206,9 +206,9 @@ ros2 node list
 
 ### Scenario 1: test a new robot running alone
 ```bash
-# Start Gazebo only, manually control tb3_2
+# Start Gazebo only, manually control tb3_3
 ros2 launch localization_evaluation multibot_gazebo.launch.py
-ros2 topic pub /tb3_2/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
+ros2 topic pub /tb3_3/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}}"
 ```
 
 ### Scenario 2: compare 2-robot vs 4-robot collaborative localization

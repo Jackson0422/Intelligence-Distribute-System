@@ -42,34 +42,34 @@ def generate_launch_description():
     with open(urdf_file, 'r') as f:
         urdf_content = f.read()
     
-    # Process xacro for robot 1 (no namespace) - manually replace $(arg namespace)
-    robot_desc_1_xacro = urdf_content.replace('$(arg namespace)', '')
+    # Process xacro for robot 1 (tb3_1 namespace) - manually replace $(arg namespace)
     # Now process with xacro (no mappings needed as we already replaced the args)
     import tempfile
+    robot_desc_1_xacro = urdf_content.replace('$(arg namespace)', 'tb3_1/')
     with tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', delete=False) as tmp1:
         tmp1.write(robot_desc_1_xacro)
         tmp1_path = tmp1.name
     robot_desc_1 = xacro.process_file(tmp1_path).toxml()
     os.unlink(tmp1_path)
     
-    # Process xacro for robot 2 (tb3_1 namespace) - manually replace $(arg namespace)
-    robot_desc_2_xacro = urdf_content.replace('$(arg namespace)', 'tb3_1/')
+    # Process xacro for robot 2 (tb3_2 namespace) - manually replace $(arg namespace)
+    robot_desc_2_xacro = urdf_content.replace('$(arg namespace)', 'tb3_2/')
     with tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', delete=False) as tmp2:
         tmp2.write(robot_desc_2_xacro)
         tmp2_path = tmp2.name
     robot_desc_2 = xacro.process_file(tmp2_path).toxml()
     os.unlink(tmp2_path)
     
-    # Process xacro for robot 3 (tb3_2 namespace) - Added
-    robot_desc_3_xacro = urdf_content.replace('$(arg namespace)', 'tb3_2/')
+    # Process xacro for robot 3 (tb3_3 namespace) - Added
+    robot_desc_3_xacro = urdf_content.replace('$(arg namespace)', 'tb3_3/')
     with tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', delete=False) as tmp3:
         tmp3.write(robot_desc_3_xacro)
         tmp3_path = tmp3.name
     robot_desc_3 = xacro.process_file(tmp3_path).toxml()
     os.unlink(tmp3_path)
     
-    # Process xacro for robot 4 (tb3_3 namespace) - Added
-    robot_desc_4_xacro = urdf_content.replace('$(arg namespace)', 'tb3_3/')
+    # Process xacro for robot 4 (tb3_4 namespace) - Added
+    robot_desc_4_xacro = urdf_content.replace('$(arg namespace)', 'tb3_4/')
     with tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', delete=False) as tmp4:
         tmp4.write(robot_desc_4_xacro)
         tmp4_path = tmp4.name
@@ -80,15 +80,15 @@ def generate_launch_description():
     x_pose_1 = LaunchConfiguration('x_pose_1', default='-2.0')
     y_pose_1 = LaunchConfiguration('y_pose_1', default='-0.5')
     
-    # Robot 2 position (tb3_1 namespace)
+    # Robot 2 position (tb3_2 namespace)
     x_pose_2 = LaunchConfiguration('x_pose_2', default='0.0')
     y_pose_2 = LaunchConfiguration('y_pose_2', default='0.5')
     
-    # Robot 3 position (tb3_2 namespace) - Added
+    # Robot 3 position (tb3_3 namespace) - Added
     x_pose_3 = LaunchConfiguration('x_pose_3', default='-1.0')
     y_pose_3 = LaunchConfiguration('y_pose_3', default='-1.5')
     
-    # Robot 4 position (tb3_3 namespace) - Added
+    # Robot 4 position (tb3_4 namespace) - Added
     x_pose_4 = LaunchConfiguration('x_pose_4', default='2.0')
     y_pose_4 = LaunchConfiguration('y_pose_4', default='0.0')
     
@@ -101,33 +101,33 @@ def generate_launch_description():
     
     # SDF model file for robot 1 (original, no namespace)
     sdf_path_robot1 = os.path.join(
-        pkg_turtlebot3_gazebo,
-        'models',
-        model_folder,
-        'model.sdf'
-    )
-    
-    # SDF model file for robot 2 (custom with tb3_1 namespace and frame prefix)
-    sdf_path_robot2 = os.path.join(
         pkg_localization_eval,
         'models',
         'tb3_1',
         'model.sdf'
     )
     
-    # SDF model file for robot 3 (custom with tb3_2 namespace) - Added
-    sdf_path_robot3 = os.path.join(
+    # SDF model file for robot 2 (custom with tb3_2 namespace and frame prefix)
+    sdf_path_robot2 = os.path.join(
         pkg_localization_eval,
         'models',
         'tb3_2',
         'model.sdf'
     )
     
-    # SDF model file for robot 4 (custom with tb3_3 namespace) - Added
-    sdf_path_robot4 = os.path.join(
+    # SDF model file for robot 3 (custom with tb3_3 namespace) - Added
+    sdf_path_robot3 = os.path.join(
         pkg_localization_eval,
         'models',
         'tb3_3',
+        'model.sdf'
+    )
+    
+    # SDF model file for robot 4 (custom with tb3_4 namespace) - Added
+    sdf_path_robot4 = os.path.join(
+        pkg_localization_eval,
+        'models',
+        'tb3_4',
         'model.sdf'
     )
     
@@ -146,12 +146,13 @@ def generate_launch_description():
         )
     )
     
-    # ========== Robot 1 (no namespace) ==========
-    # Robot state publisher for robot 1 (publishes TF: base_footprint -> base_link -> base_scan, etc.)
+    # ========== Robot 1 (tb3_1 namespace) ==========
+    # Robot state publisher for robot 1 (publishes TF: tb3_1/base_footprint -> tb3_1/base_link -> tb3_1/base_scan, etc.)
     robot_state_pub_1 = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
         name='robot_state_publisher',
+        namespace='tb3_1',
         output='screen',
         parameters=[{
             'robot_description': robot_desc_1,
@@ -164,7 +165,7 @@ def generate_launch_description():
         package='gazebo_ros',
         executable='spawn_entity.py',
         arguments=[
-            '-entity', 'burger',
+            '-entity', 'tb3_1',
             '-file', sdf_path_robot1,
             '-x', x_pose_1,
             '-y', y_pose_1,
@@ -173,47 +174,56 @@ def generate_launch_description():
         output='screen',
     )
     
-    # ========== Robot 2 (tb3_1 namespace) ==========
-    # Robot state publisher for robot 2 (publishes TF: tb3_1/base_footprint -> tb3_1/base_link -> tb3_1/base_scan, etc.)
+    # Delay robot 1 spawn to avoid race condition
+    delayed_spawn_robot_1 = TimerAction(
+        period=0.5,
+        actions=[spawn_robot_1]
+    )
+    
+    # ========== Robot 2 (tb3_2 namespace) ==========
+    # Robot state publisher for robot 2 (publishes TF: tb3_2/base_footprint -> tb3_2/base_link -> tb3_2/base_scan, etc.)
     robot_state_pub_2 = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
         name='robot_state_publisher',
-        namespace='tb3_1',
+        namespace='tb3_2',
         output='screen',
         parameters=[{
             'robot_description': robot_desc_2,
             'use_sim_time': use_sim_time
-        }]
+        }],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 2']))
     )
     
-    # Spawn robot 2 in Gazebo using custom SDF model with tb3_1 frame prefix
+    # Spawn robot 2 in Gazebo using custom SDF model with tb3_2 frame prefix
     spawn_robot_2 = Node(
         package='gazebo_ros',
         executable='spawn_entity.py',
         arguments=[
-            '-entity', 'tb3_1',
+            '-entity', 'tb3_2',
             '-file', sdf_path_robot2,
             '-x', x_pose_2,
             '-y', y_pose_2,
             '-z', '0.01',
         ],
         output='screen',
+        condition=IfCondition(PythonExpression([num_robots, ' >= 2']))
     )
     
     # Delay robot 2 spawn to avoid race condition
     delayed_spawn_robot_2 = TimerAction(
         period=2.0,
-        actions=[spawn_robot_2]
+        actions=[spawn_robot_2],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 2']))
     )
     
-    # ========== Robot 3 (tb3_2 namespace) ========== Added
+    # ========== Robot 3 (tb3_3 namespace) ========== Added
     # Robot state publisher for robot 3
     robot_state_pub_3 = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
         name='robot_state_publisher',
-        namespace='tb3_2',
+        namespace='tb3_3',
         output='screen',
         parameters=[{
             'robot_description': robot_desc_3,
@@ -227,7 +237,7 @@ def generate_launch_description():
         package='gazebo_ros',
         executable='spawn_entity.py',
         arguments=[
-            '-entity', 'tb3_2',
+            '-entity', 'tb3_3',
             '-file', sdf_path_robot3,
             '-x', x_pose_3,
             '-y', y_pose_3,
@@ -240,16 +250,17 @@ def generate_launch_description():
     # Delay robot 3 spawn
     delayed_spawn_robot_3 = TimerAction(
         period=4.0,
-        actions=[spawn_robot_3]
+        actions=[spawn_robot_3],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
     )
     
-    # ========== Robot 4 (tb3_3 namespace) ========== Added
+    # ========== Robot 4 (tb3_4 namespace) ========== Added
     # Robot state publisher for robot 4
     robot_state_pub_4 = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
         name='robot_state_publisher',
-        namespace='tb3_3',
+        namespace='tb3_4',
         output='screen',
         parameters=[{
             'robot_description': robot_desc_4,
@@ -263,7 +274,7 @@ def generate_launch_description():
         package='gazebo_ros',
         executable='spawn_entity.py',
         arguments=[
-            '-entity', 'tb3_3',
+            '-entity', 'tb3_4',
             '-file', sdf_path_robot4,
             '-x', x_pose_4,
             '-y', y_pose_4,
@@ -276,7 +287,8 @@ def generate_launch_description():
     # Delay robot 4 spawn
     delayed_spawn_robot_4 = TimerAction(
         period=6.0,
-        actions=[spawn_robot_4]
+        actions=[spawn_robot_4],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 4']))
     )
     
     # Build launch description
@@ -330,7 +342,7 @@ def generate_launch_description():
     ld.add_action(gzserver_cmd)
     ld.add_action(gzclient_cmd)
     ld.add_action(robot_state_pub_1)
-    ld.add_action(spawn_robot_1)
+    ld.add_action(delayed_spawn_robot_1)
     ld.add_action(robot_state_pub_2)
     ld.add_action(delayed_spawn_robot_2)
     ld.add_action(robot_state_pub_3)  # Added

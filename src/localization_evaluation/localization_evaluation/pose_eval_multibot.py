@@ -10,7 +10,7 @@ Features:
 
 Subscribed Topics:
 - /odom, /amcl_pose: Robot 1 (no namespace)
-- /tb3_1/odom, /tb3_1/amcl_pose: Robot 2
+- /tb3_2/odom, /tb3_2/amcl_pose: Robot 2
 
 Output files saved in ~/ids_roswk/evaluation_results/multibot/
 """
@@ -68,8 +68,8 @@ class MultiRobotPoseEvalNode(Node):
     # ========== Robot Namespace Configuration ==========
     # Consistent with the configuration in track_multibot.py
     # '' (empty string) = first robot, no namespace
-    # 'tb3_1' = second robot
-    ROBOT_NAMESPACES = ['', 'tb3_1']
+    # 'tb3_2' = second robot
+    ROBOT_NAMESPACES = ['', 'tb3_2']
     # ========================================
     
     def __init__(self):
@@ -102,7 +102,7 @@ class MultiRobotPoseEvalNode(Node):
         # Create subscriptions for each robot
         for ns in self.ROBOT_NAMESPACES:
             # Identifier for display and filename
-            display_name = ns if ns else 'tb3_0'
+            display_name = ns if ns else 'tb3_1'
             self.robots[display_name] = RobotData(namespace=display_name)
             
             # Construct topic names based on namespace

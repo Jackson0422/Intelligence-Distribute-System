@@ -37,7 +37,7 @@ class ColocDataProcessor:
         
         # Robot data dictionary
         self.robot_data = {}
-        self.robot_ids = [f'tb3_{i}' if i > 0 else 'tb3_0' 
+        self.robot_ids = [f'tb3_{i}' if i > 0 else 'tb3_1' 
                           for i in range(num_robots)]
         
         self.timestamp_suffix = None
@@ -45,14 +45,14 @@ class ColocDataProcessor:
     def find_latest_files(self) -> bool:
         """Find the latest set of evaluation files."""
         # Find all coloc_eval files to get timestamps
-        eval_files = glob.glob(os.path.join(self.data_dir, 'tb3_0_coloc_eval_*.csv'))
+        eval_files = glob.glob(os.path.join(self.data_dir, 'tb3_1_coloc_eval_*.csv'))
         if not eval_files:
             print(f"No evaluation files found in {self.data_dir}")
             return False
         
         # Get the latest timestamp
         latest_file = max(eval_files, key=os.path.getmtime)
-        self.timestamp_suffix = os.path.basename(latest_file).replace('tb3_0_coloc_eval_', '').replace('.csv', '')
+        self.timestamp_suffix = os.path.basename(latest_file).replace('tb3_1_coloc_eval_', '').replace('.csv', '')
         print(f"Using timestamp: {self.timestamp_suffix}")
         return True
     

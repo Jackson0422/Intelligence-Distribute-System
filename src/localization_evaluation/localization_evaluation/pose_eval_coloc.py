@@ -51,7 +51,7 @@ class PoseEvalColoc(Node):
         self.get_logger().info('=' * 80)
         
         # Robot ID list
-        self.robot_ids = ['tb3_0', 'tb3_1', 'tb3_2', 'tb3_3'][:self.num_robots]
+        self.robot_ids = ['tb3_1', 'tb3_2', 'tb3_3', 'tb3_4'][:self.num_robots]
         
         # Dynamically create robot data dictionary
         self.robot_data = {}
@@ -71,7 +71,7 @@ class PoseEvalColoc(Node):
         
         for robot_id in self.robot_ids:
             # Subscribe to ground truth (odom)
-            if robot_id == 'tb3_0':
+            if robot_id == 'tb3_1':
                 odom_topic = '/odom'
                 coloc_topic = '/coloc_pose'
             else:
@@ -128,7 +128,7 @@ class PoseEvalColoc(Node):
         # pose_in_frame() uses lookup_transform(target='odom', source='map')
         required_transforms = []
         for robot_id in self.robot_ids:
-            if robot_id == 'tb3_0':
+            if robot_id == 'tb3_1':
                 required_transforms.append(('odom', 'map'))
             else:
                 required_transforms.append((f'{robot_id}/odom', 'map'))

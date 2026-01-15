@@ -66,17 +66,17 @@ def generate_launch_description():
     peer_timeout = LaunchConfiguration('peer_timeout')
     correction_threshold = LaunchConfiguration('correction_threshold')
     
-    # Collaborative Localization Agent - TB3_0
-    agent_tb3_0 = Node(
+    # Collaborative Localization Agent - tb3_1
+    agent_tb3_1 = Node(
         package='localization_evaluation',
         executable='decentralized_coloc_agent',
-        name='coloc_agent_tb3_0',
+        name='coloc_agent_tb3_1',
         output='screen',
         parameters=[{
             # Use Gazebo simulation time to ensure consistency with AMCL/TF timestamps
             'use_sim_time': True,
-            'robot_id': 'tb3_0',
-            'peer_ids': ['tb3_1', 'tb3_2', 'tb3_3'],  # Includes all other robots
+            'robot_id': 'tb3_1',
+            'peer_ids': ['tb3_2', 'tb3_3', 'tb3_4'],  # Includes all other robots
             'gossip_rate': gossip_rate,
             'self_weight': self_weight,
             'peer_timeout': peer_timeout,
@@ -89,17 +89,17 @@ def generate_launch_description():
         ]
     )
     
-    # Collaborative Localization Agent - TB3_1
-    agent_tb3_1 = Node(
+    # Collaborative Localization Agent - tb3_2
+    agent_tb3_2 = Node(
         package='localization_evaluation',
         executable='decentralized_coloc_agent',
-        name='coloc_agent_tb3_1',
+        name='coloc_agent_tb3_2',
         output='screen',
         parameters=[{
             # Use Gazebo simulation time to ensure consistency with AMCL/TF timestamps
             'use_sim_time': True,
-            'robot_id': 'tb3_1',
-            'peer_ids': ['tb3_0', 'tb3_2', 'tb3_3'],  # Includes all other robots
+            'robot_id': 'tb3_2',
+            'peer_ids': ['tb3_1', 'tb3_3', 'tb3_4'],  # Includes all other robots
             'gossip_rate': gossip_rate,
             'self_weight': self_weight,
             'peer_timeout': peer_timeout,
@@ -111,16 +111,16 @@ def generate_launch_description():
         ]
     )
     
-    # Collaborative Localization Agent - TB3_2 (Added)
-    agent_tb3_2 = Node(
+    # Collaborative Localization Agent - tb3_3 (Added)
+    agent_tb3_3 = Node(
         package='localization_evaluation',
         executable='decentralized_coloc_agent',
-        name='coloc_agent_tb3_2',
+        name='coloc_agent_tb3_3',
         output='screen',
         parameters=[{
             'use_sim_time': True,
-            'robot_id': 'tb3_2',
-            'peer_ids': ['tb3_0', 'tb3_1', 'tb3_3'],
+            'robot_id': 'tb3_3',
+            'peer_ids': ['tb3_1', 'tb3_2', 'tb3_4'],
             'gossip_rate': gossip_rate,
             'self_weight': self_weight,
             'peer_timeout': peer_timeout,
@@ -133,16 +133,16 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
     )
     
-    # Collaborative Localization Agent - TB3_3 (Added)
-    agent_tb3_3 = Node(
+    # Collaborative Localization Agent - tb3_4 (Added)
+    agent_tb3_4 = Node(
         package='localization_evaluation',
         executable='decentralized_coloc_agent',
-        name='coloc_agent_tb3_3',
+        name='coloc_agent_tb3_4',
         output='screen',
         parameters=[{
             'use_sim_time': True,
-            'robot_id': 'tb3_3',
-            'peer_ids': ['tb3_0', 'tb3_1', 'tb3_2'],
+            'robot_id': 'tb3_4',
+            'peer_ids': ['tb3_1', 'tb3_2', 'tb3_3'],
             'gossip_rate': gossip_rate,
             'self_weight': self_weight,
             'peer_timeout': peer_timeout,
@@ -166,9 +166,9 @@ def generate_launch_description():
     ld.add_action(declare_correction_threshold)
     
     # Add nodes
-    ld.add_action(agent_tb3_0)
     ld.add_action(agent_tb3_1)
-    ld.add_action(agent_tb3_2)  # Added
+    ld.add_action(agent_tb3_2)
     ld.add_action(agent_tb3_3)  # Added
+    ld.add_action(agent_tb3_4)  # Added
     
     return ld

@@ -7,21 +7,21 @@
 │                    Gazebo simulation environment                │
 │              (multibot_gazebo.launch.py)                        │
 │                                                                 │
-│    TB3_0 (/odom, /scan)        TB3_1 (/tb3_1/odom, /scan)        │
+│    tb3_1 (/odom, /scan)        tb3_2 (/tb3_2/odom, /scan)        │
 └────────┬────────────────────────────────┬───────────────────────┘
          │                                │
          ▼                                ▼
 ┌────────────────────┐           ┌────────────────────┐
-│   AMCL (TB3_0)     │           │   AMCL (TB3_1)     │
-│  /amcl_pose        │           │  /tb3_1/amcl_pose  │
+│   AMCL (tb3_1)     │           │   AMCL (tb3_2)     │
+│  /amcl_pose        │           │  /tb3_2/amcl_pose  │
 └────────┬───────────┘           └───────┬────────────┘
          │                               │
          ▼                               ▼
 ┌────────────────────┐           ┌────────────────────┐
 │ Collaborative agent│◄─ Gossip ─►│ Collaborative agent│
-│ (TB3_0)            │    P2P    │ (TB3_1)            │
-│ /coloc_belief      │           │ /tb3_1/coloc_belief│
-│ /coloc_pose        │           │ /tb3_1/coloc_pose  │
+│ (tb3_1)            │    P2P    │ (tb3_2)            │
+│ /coloc_belief      │           │ /tb3_2/coloc_belief│
+│ /coloc_pose        │           │ /tb3_2/coloc_pose  │
 └────────┬───────────┘           └───────┬────────────┘
          │                               │
          └───────────────┬───────────────┘
@@ -96,8 +96,8 @@ ros2 run localization_evaluation track_multibot
 # View the latest statistics reports
 cd ~/ids_roswk/evaluation_results/multibot
 ls -lht tb3_*_statistics_*.txt | head -2
-cat tb3_0_statistics_[latest_timestamp].txt
 cat tb3_1_statistics_[latest_timestamp].txt
+cat tb3_2_statistics_[latest_timestamp].txt
 
 # Generate plots
 cd ~/ids_roswk && source install/setup.bash
@@ -111,8 +111,8 @@ python3 src/localization_evaluation/localization_evaluation/data_processing_mult
 # View collaborative localization statistics reports
 cd ~/ids_roswk/evaluation_results/multibot/coloc
 ls -lht tb3_*_coloc_statistics_*.txt | head -2
-cat tb3_0_coloc_statistics_[latest_timestamp].txt
 cat tb3_1_coloc_statistics_[latest_timestamp].txt
+cat tb3_2_coloc_statistics_[latest_timestamp].txt
 ```
 
 ## 🔧 Parameter Tuning
@@ -166,15 +166,15 @@ ros2 launch localization_evaluation decentralized_coloc.launch.py \
 ```bash
 # View AMCL poses
 ros2 topic echo /amcl_pose --once
-ros2 topic echo /tb3_1/amcl_pose --once
+ros2 topic echo /tb3_2/amcl_pose --once
 
 # View collaborative localization poses
 ros2 topic echo /coloc_pose --once
-ros2 topic echo /tb3_1/coloc_pose --once
+ros2 topic echo /tb3_2/coloc_pose --once
 
 # View belief broadcasts (JSON format)
 ros2 topic echo /coloc_belief
-ros2 topic echo /tb3_1/coloc_belief
+ros2 topic echo /tb3_2/coloc_belief
 ```
 
 ### View node status

@@ -5,9 +5,7 @@
 ### 1. Clone the Repository
 
 ```bash
-cd ~
-git clone <repository-url> ids_roswk
-cd ids_roswk
+git clone <repository-url>
 ```
 
 ### 2. Build the Workspace
@@ -79,3 +77,10 @@ ros2 run localization_evaluation track_multibot --ros-args -p num_robots:=3
 ```
 
 **The robots will now navigate through their predefined waypoints.**
+
+```bash
+pkill -9 gzserver && pkill -9 gzclient
+source ~/.bashrc
+export LIBGL_ALWAYS_SOFTWARE=1
+export TURTLEBOT3_MODEL=burger
+```

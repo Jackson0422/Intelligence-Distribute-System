@@ -10,9 +10,9 @@ Functionality:
 
 Published Topics:
 - /cmd_vel: Velocity command for robot 1 (no namespace)
-- /tb3_1/cmd_vel: Velocity command for robot 2
-- /tb3_2/cmd_vel: Velocity command for robot 3 (optional)
-- /tb3_3/cmd_vel: Velocity command for robot 4 (optional)
+- /tb3_2/cmd_vel: Velocity command for robot 2
+- /tb3_3/cmd_vel: Velocity command for robot 3 (optional)
+- /tb3_4/cmd_vel: Velocity command for robot 4 (optional)
 """
 
 import rclpy
@@ -87,7 +87,7 @@ class RobotController:
         )
         
         # Name for logging display
-        self.display_name = namespace if namespace else 'tb3_0'
+        self.display_name = namespace if namespace else 'tb3_1'
         
         node.get_logger().info(f'[{self.display_name}] Controller initialized.')
         node.get_logger().info(f'[{self.display_name}] Publishing to topic: {cmd_vel_topic}')
@@ -326,9 +326,9 @@ class MultiRobotTrackPublisher(Node):
     # ========== Robot Configuration ==========
     # Namespace explanation:
     # - '' (empty string): First robot, topics are /cmd_vel, /odom
-    # - 'tb3_1': Second robot, topics are /tb3_1/cmd_vel, /tb3_1/odom
-    # - 'tb3_2': Third robot, topics are /tb3_2/cmd_vel, /tb3_2/odom
-    # - 'tb3_3': Fourth robot, topics are /tb3_3/cmd_vel, /tb3_3/odom
+    # - 'tb3_2': Second robot, topics are /tb3_2/cmd_vel, /tb3_2/odom
+    # - 'tb3_3': Third robot, topics are /tb3_3/cmd_vel, /tb3_3/odom
+    # - 'tb3_4': Fourth robot, topics are /tb3_4/cmd_vel, /tb3_4/odom
     ROBOTS_CONFIG = {
         '': {  # Robot 1 - no namespace
             'start': (-2.0, -0.5),
@@ -345,7 +345,7 @@ class MultiRobotTrackPublisher(Node):
             ],
             'seed': 42,
         },
-        'tb3_1': {  # Robot 2 - tb3_1 namespace
+        'tb3_2': {  # Robot 2 - tb3_2 namespace
             'start': (0.0, 0.5),
             'waypoints': [
                 (0.0, 0.5),    # Start
@@ -357,7 +357,7 @@ class MultiRobotTrackPublisher(Node):
             ],
             'seed': 43,  # Different seeds produce different paths
         },
-        'tb3_2': {  # Robot 3 - tb3_2 namespace (Added)
+        'tb3_3': {  # Robot 3 - tb3_3 namespace (Added)
             'start': (-1.0, -1.5),
             'waypoints': [
                 (-1.0, -1.5),   # Start
@@ -369,7 +369,7 @@ class MultiRobotTrackPublisher(Node):
             ],
             'seed': 42,
         },
-        'tb3_3': {  # Robot 4 - tb3_3 namespace (Added)
+        'tb3_4': {  # Robot 4 - tb3_4 namespace (Added)
             'start': (2.0, 0.0),
             'waypoints': [
                 (2.0, 0.0),     # Start
@@ -406,13 +406,13 @@ class MultiRobotTrackPublisher(Node):
             raise ValueError(f'Invalid num_robots: {num_robots}')
         
         # Select the robots to run (select the first N in dictionary order)
-        # Note: The empty string comes first, so the order is: '', 'tb3_1', 'tb3_2', 'tb3_3'
-        all_robot_keys = ['', 'tb3_1', 'tb3_2', 'tb3_3']
+        # Note: The empty string comes first, so the order is: '', 'tb3_2', 'tb3_3', 'tb3_4'
+        all_robot_keys = ['', 'tb3_2', 'tb3_3', 'tb3_4']
         selected_keys = all_robot_keys[:num_robots]
         
         self.get_logger().info('='*60)
         self.get_logger().info(f'Multi-robot track publisher started - running {num_robots} robots.')
-        self.get_logger().info(f'Active robots: {[k if k else "tb3_0" for k in selected_keys]}')
+        self.get_logger().info(f'Active robots: {[k if k else "tb3_1" for k in selected_keys]}')
         self.get_logger().info('='*60)
         
         # Create controllers for the selected robots
@@ -435,7 +435,7 @@ class MultiRobotTrackPublisher(Node):
         self.get_logger().info('='*60)
         self.get_logger().info(f'Created {len(self.controllers)} robot controllers.')
         for name in self.controllers.keys():
-            display_name = name if name else 'tb3_0 (no namespace)'
+            display_name = name if name else 'tb3_1 (no namespace)'
             self.get_logger().info(f'  - {display_name}')
         self.get_logger().info('='*60)
         

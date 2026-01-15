@@ -36,8 +36,8 @@ class DecentralizedColocAgent(Node):
         super().__init__('decentralized_coloc_agent')
 
         # Declare parameters
-        self.declare_parameter('robot_id', 'tb3_0')
-        self.declare_parameter('peer_ids', ['tb3_1'])
+        self.declare_parameter('robot_id', 'tb3_1')
+        self.declare_parameter('peer_ids', ['tb3_2'])
         self.declare_parameter('gossip_rate', 1.0)  # Hz
         self.declare_parameter('peer_timeout', 3.0)  # seconds
         self.declare_parameter('correction_threshold', 0.001)  # meters
@@ -464,10 +464,10 @@ class DecentralizedColocAgent(Node):
         return math.atan2(math.sin(angle), math.cos(angle))
 
     def _get_topic_name(self, topic_base: str, for_peer_id: str = None) -> str:
-        """Get a namespaced topic name, handling the special case for tb3_0."""
+        """Get a namespaced topic name, handling the special case for tb3_1."""
         robot_id = for_peer_id if for_peer_id is not None else self.robot_id
-        if robot_id == 'tb3_0':
-            # tb3_0 uses global topics
+        if robot_id == 'tb3_1':
+            # tb3_1 uses global topics
             return f'/{topic_base}'
         else:
             # Other robots use namespaced topics
@@ -476,15 +476,15 @@ class DecentralizedColocAgent(Node):
     def _get_base_frame(self, robot_id):
         """
         Get the robot's base_footprint frame name.
-        Handles the special tb3_0 naming (no prefix, backward compatible).
+        Handles the special tb3_1 naming (no prefix, backward compatible).
 
         Args:
-            robot_id: 'tb3_0', 'tb3_1', 'tb3_2', 'tb3_3'
+            robot_id: 'tb3_1', 'tb3_2', 'tb3_3', 'tb3_4'
 
         Returns:
-            TF frame name (tb3_0 has no prefix, others are namespaced)
+            TF frame name (tb3_1 has no prefix, others are namespaced)
         """
-        if robot_id == 'tb3_0':
+        if robot_id == 'tb3_1':
             return 'base_footprint'
         else:
             return f'{robot_id}/base_footprint'

@@ -27,11 +27,6 @@ def generate_launch_description():
     autostart = LaunchConfiguration('autostart', default='true')
     
     # Parameters files
-    params_file_tb3_0 = os.path.join(
-        pkg_localization_eval, 
-        'param', 
-        'nav2_params_tb3_0.yaml'
-    )
     params_file_tb3_1 = os.path.join(
         pkg_localization_eval, 
         'param', 
@@ -46,6 +41,11 @@ def generate_launch_description():
         pkg_localization_eval, 
         'param', 
         'nav2_params_tb3_3.yaml'
+    )
+    params_file_tb3_4 = os.path.join(
+        pkg_localization_eval, 
+        'param', 
+        'nav2_params_tb3_4.yaml'
     )
     
     # Map server node
@@ -67,7 +67,7 @@ def generate_launch_description():
         name='amcl',
         output='screen',
         parameters=[
-            params_file_tb3_0,
+            params_file_tb3_1,
             {'use_sim_time': use_sim_time}
         ],
         remappings=[
@@ -77,26 +77,8 @@ def generate_launch_description():
     )
     
     # AMCL node for robot 2 (different node name instead of namespace)
-    # Using node name 'tb3_1_amcl' without namespace to simplify parameter loading
+    # Using node name 'tb3_2_amcl' without namespace to simplify parameter loading
     amcl_node_2 = Node(
-        package='nav2_amcl',
-        executable='amcl',
-        name='tb3_1_amcl',
-        output='screen',
-        parameters=[params_file_tb3_1, {'use_sim_time': use_sim_time}],
-        remappings=[
-            ('/tf', '/tf'),
-            ('/tf_static', '/tf_static'),
-            ('map', '/map'),  # Subscribe to global /map topic
-            ('scan', '/tb3_1/scan'),  # Subscribe to TB3_1's scan
-            ('amcl_pose', '/tb3_1/amcl_pose'),  # Publish to TB3_1's pose topic
-            ('particle_cloud', '/tb3_1/particle_cloud'),  # Particle cloud
-            ('initialpose', '/tb3_1/initialpose')  # Subscribe to TB3_1's initialpose
-        ]
-    )
-    
-    # AMCL node for robot 3 (tb3_2) - Added
-    amcl_node_3 = Node(
         package='nav2_amcl',
         executable='amcl',
         name='tb3_2_amcl',
@@ -105,17 +87,16 @@ def generate_launch_description():
         remappings=[
             ('/tf', '/tf'),
             ('/tf_static', '/tf_static'),
-            ('map', '/map'),
-            ('scan', '/tb3_2/scan'),
-            ('amcl_pose', '/tb3_2/amcl_pose'),
-            ('particle_cloud', '/tb3_2/particle_cloud'),
-            ('initialpose', '/tb3_2/initialpose')
-        ],
-        condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
+            ('map', '/map'),  # Subscribe to global /map topic
+            ('scan', '/tb3_2/scan'),  # Subscribe to tb3_2's scan
+            ('amcl_pose', '/tb3_2/amcl_pose'),  # Publish to tb3_2's pose topic
+            ('particle_cloud', '/tb3_2/particle_cloud'),  # Particle cloud
+            ('initialpose', '/tb3_2/initialpose')  # Subscribe to tb3_2's initialpose
+        ]
     )
     
-    # AMCL node for robot 4 (tb3_3) - Added
-    amcl_node_4 = Node(
+    # AMCL node for robot 3 (tb3_3) - Added
+    amcl_node_3 = Node(
         package='nav2_amcl',
         executable='amcl',
         name='tb3_3_amcl',
@@ -129,6 +110,25 @@ def generate_launch_description():
             ('amcl_pose', '/tb3_3/amcl_pose'),
             ('particle_cloud', '/tb3_3/particle_cloud'),
             ('initialpose', '/tb3_3/initialpose')
+        ],
+        condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
+    )
+    
+    # AMCL node for robot 4 (tb3_4) - Added
+    amcl_node_4 = Node(
+        package='nav2_amcl',
+        executable='amcl',
+        name='tb3_4_amcl',
+        output='screen',
+        parameters=[params_file_tb3_4, {'use_sim_time': use_sim_time}],
+        remappings=[
+            ('/tf', '/tf'),
+            ('/tf_static', '/tf_static'),
+            ('map', '/map'),
+            ('scan', '/tb3_4/scan'),
+            ('amcl_pose', '/tb3_4/amcl_pose'),
+            ('particle_cloud', '/tb3_4/particle_cloud'),
+            ('initialpose', '/tb3_4/initialpose')
         ],
         condition=IfCondition(PythonExpression([num_robots, ' >= 4']))
     )
@@ -145,9 +145,9 @@ def generate_launch_description():
             'use_sim_time': use_sim_time,
             'autostart': autostart,
             'node_names': PythonExpression([
-                "['map_server', 'amcl', 'tb3_1_amcl'] if int('", num_robots, "') == 2 else ",
-                "(['map_server', 'amcl', 'tb3_1_amcl', 'tb3_2_amcl'] if int('", num_robots, "') == 3 else ",
-                "['map_server', 'amcl', 'tb3_1_amcl', 'tb3_2_amcl', 'tb3_3_amcl'])"
+                "['map_server', 'amcl', 'tb3_2_amcl'] if int('", num_robots, "') == 2 else ",
+                "(['map_server', 'amcl', 'tb3_2_amcl', 'tb3_3_amcl'] if int('", num_robots, "') == 3 else ",
+                "['map_server', 'amcl', 'tb3_2_amcl', 'tb3_3_amcl', 'tb3_4_amcl'])"
             ]),
             'bond_timeout': 10.0,
         }]

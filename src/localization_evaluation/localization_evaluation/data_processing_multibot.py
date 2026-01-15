@@ -2,7 +2,7 @@
 """
 Multi-Robot Data Processing and Visualization for Localization Evaluation
 
-Generates comparison plots for two robots (TB3_0 and TB3_1):
+Generates comparison plots for two robots (tb3_1 and tb3_2):
 1. Trajectory Comparison (GT vs AMCL for both robots)
 2. Position Error Comparison
 3. Yaw Error Comparison
@@ -29,29 +29,29 @@ class MultibotDataProcessor:
             data_dir = os.path.expanduser('~/ids_roswk/evaluation_results/multibot')
         self.data_dir = data_dir
         
-        # TB3_0 data
-        self.tb3_0_gt = None
-        self.tb3_0_est = None
-        self.tb3_0_err = None
-        
-        # TB3_1 data
+        # tb3_1 data
         self.tb3_1_gt = None
         self.tb3_1_est = None
         self.tb3_1_err = None
+        
+        # tb3_2 data
+        self.tb3_2_gt = None
+        self.tb3_2_est = None
+        self.tb3_2_err = None
         
         self.timestamp_suffix = None
         
     def find_latest_files(self) -> bool:
         """Find the latest set of evaluation files."""
         # Find all statistics files to get timestamps
-        stat_files = glob.glob(os.path.join(self.data_dir, 'tb3_0_statistics_*.txt'))
+        stat_files = glob.glob(os.path.join(self.data_dir, 'tb3_1_statistics_*.txt'))
         if not stat_files:
             print(f"No evaluation files found in {self.data_dir}")
             return False
         
         # Get the latest timestamp
         latest_file = max(stat_files, key=os.path.getmtime)
-        self.timestamp_suffix = os.path.basename(latest_file).replace('tb3_0_statistics_', '').replace('.txt', '')
+        self.timestamp_suffix = os.path.basename(latest_file).replace('tb3_1_statistics_', '').replace('.txt', '')
         print(f"Using data from timestamp: {self.timestamp_suffix}")
         return True
     
@@ -64,39 +64,39 @@ class MultibotDataProcessor:
                 return False
         
         try:
-            # TB3_0 files
-            tb3_0_gt_file = os.path.join(self.data_dir, f'tb3_0_ground_truth_{self.timestamp_suffix}.csv')
-            tb3_0_est_file = os.path.join(self.data_dir, f'tb3_0_estimated_{self.timestamp_suffix}.csv')
-            tb3_0_err_file = os.path.join(self.data_dir, f'tb3_0_errors_{self.timestamp_suffix}.csv')
-            
-            # TB3_1 files
+            # tb3_1 files
             tb3_1_gt_file = os.path.join(self.data_dir, f'tb3_1_ground_truth_{self.timestamp_suffix}.csv')
             tb3_1_est_file = os.path.join(self.data_dir, f'tb3_1_estimated_{self.timestamp_suffix}.csv')
             tb3_1_err_file = os.path.join(self.data_dir, f'tb3_1_errors_{self.timestamp_suffix}.csv')
             
-            # Load TB3_0 data
-            self.tb3_0_gt = pd.read_csv(tb3_0_gt_file)
-            self.tb3_0_est = pd.read_csv(tb3_0_est_file)
-            self.tb3_0_err = pd.read_csv(tb3_0_err_file)
+            # tb3_2 files
+            tb3_2_gt_file = os.path.join(self.data_dir, f'tb3_2_ground_truth_{self.timestamp_suffix}.csv')
+            tb3_2_est_file = os.path.join(self.data_dir, f'tb3_2_estimated_{self.timestamp_suffix}.csv')
+            tb3_2_err_file = os.path.join(self.data_dir, f'tb3_2_errors_{self.timestamp_suffix}.csv')
             
-            # Load TB3_1 data
+            # Load tb3_1 data
             self.tb3_1_gt = pd.read_csv(tb3_1_gt_file)
             self.tb3_1_est = pd.read_csv(tb3_1_est_file)
             self.tb3_1_err = pd.read_csv(tb3_1_err_file)
             
-            # Convert timestamp to relative time (starting from 0)
-            start_time = min(self.tb3_0_gt['timestamp'].min(), self.tb3_1_gt['timestamp'].min())
+            # Load tb3_2 data
+            self.tb3_2_gt = pd.read_csv(tb3_2_gt_file)
+            self.tb3_2_est = pd.read_csv(tb3_2_est_file)
+            self.tb3_2_err = pd.read_csv(tb3_2_err_file)
             
-            self.tb3_0_gt['time'] = self.tb3_0_gt['timestamp'] - start_time
-            self.tb3_0_est['time'] = self.tb3_0_est['timestamp'] - start_time
-            self.tb3_0_err['time'] = self.tb3_0_err['timestamp'] - start_time
+            # Convert timestamp to relative time (starting from 0)
+            start_time = min(self.tb3_1_gt['timestamp'].min(), self.tb3_2_gt['timestamp'].min())
             
             self.tb3_1_gt['time'] = self.tb3_1_gt['timestamp'] - start_time
             self.tb3_1_est['time'] = self.tb3_1_est['timestamp'] - start_time
             self.tb3_1_err['time'] = self.tb3_1_err['timestamp'] - start_time
             
-            print(f"Loaded TB3_0: {len(self.tb3_0_gt)} GT, {len(self.tb3_0_est)} estimated, {len(self.tb3_0_err)} error samples")
-            print(f"Loaded TB3_1: {len(self.tb3_1_gt)} GT, {len(self.tb3_1_est)} estimated, {len(self.tb3_1_err)} error samples")
+            self.tb3_2_gt['time'] = self.tb3_2_gt['timestamp'] - start_time
+            self.tb3_2_est['time'] = self.tb3_2_est['timestamp'] - start_time
+            self.tb3_2_err['time'] = self.tb3_2_err['timestamp'] - start_time
+            
+            print(f"Loaded tb3_1: {len(self.tb3_1_gt)} GT, {len(self.tb3_1_est)} estimated, {len(self.tb3_1_err)} error samples")
+            print(f"Loaded tb3_2: {len(self.tb3_2_gt)} GT, {len(self.tb3_2_est)} estimated, {len(self.tb3_2_err)} error samples")
             return True
             
         except Exception as e:
@@ -105,35 +105,35 @@ class MultibotDataProcessor:
     
     def plot_trajectory_comparison(self, save_path: str = None):
         """Plot GT and AMCL trajectories for both robots on the same figure."""
-        if self.tb3_0_gt is None or self.tb3_1_gt is None:
+        if self.tb3_1_gt is None or self.tb3_2_gt is None:
             print("Data not loaded. Call load_data() first.")
             return
         
         fig, ax = plt.subplots(figsize=(12, 10))
         
-        # Plot TB3_0 trajectories
-        ax.plot(self.tb3_0_gt['x'], self.tb3_0_gt['y'], 
-                'b-', linewidth=2.0, label='TB3_0 Ground Truth', alpha=0.9)
-        ax.plot(self.tb3_0_est['x'], self.tb3_0_est['y'], 
-                'b--', linewidth=1.5, label='TB3_0 AMCL', alpha=0.7)
-        
-        # Plot TB3_1 trajectories
+        # Plot tb3_1 trajectories
         ax.plot(self.tb3_1_gt['x'], self.tb3_1_gt['y'], 
-                'r-', linewidth=2.0, label='TB3_1 Ground Truth', alpha=0.9)
+                'b-', linewidth=2.0, label='tb3_1 Ground Truth', alpha=0.9)
         ax.plot(self.tb3_1_est['x'], self.tb3_1_est['y'], 
-                'r--', linewidth=1.5, label='TB3_1 AMCL', alpha=0.7)
+                'b--', linewidth=1.5, label='tb3_1 AMCL', alpha=0.7)
+        
+        # Plot tb3_2 trajectories
+        ax.plot(self.tb3_2_gt['x'], self.tb3_2_gt['y'], 
+                'r-', linewidth=2.0, label='tb3_2 Ground Truth', alpha=0.9)
+        ax.plot(self.tb3_2_est['x'], self.tb3_2_est['y'], 
+                'r--', linewidth=1.5, label='tb3_2 AMCL', alpha=0.7)
         
         # Mark start points
-        ax.scatter(self.tb3_0_gt['x'].iloc[0], self.tb3_0_gt['y'].iloc[0], 
-                   c='green', s=150, marker='o', zorder=5, edgecolors='black', linewidths=1.5)
         ax.scatter(self.tb3_1_gt['x'].iloc[0], self.tb3_1_gt['y'].iloc[0], 
+                   c='green', s=150, marker='o', zorder=5, edgecolors='black', linewidths=1.5)
+        ax.scatter(self.tb3_2_gt['x'].iloc[0], self.tb3_2_gt['y'].iloc[0], 
                    c='green', s=150, marker='o', zorder=5, edgecolors='black', linewidths=1.5, 
                    label='Start Position')
         
         # Mark end points
-        ax.scatter(self.tb3_0_gt['x'].iloc[-1], self.tb3_0_gt['y'].iloc[-1], 
-                   c='purple', s=150, marker='s', zorder=5, edgecolors='black', linewidths=1.5)
         ax.scatter(self.tb3_1_gt['x'].iloc[-1], self.tb3_1_gt['y'].iloc[-1], 
+                   c='purple', s=150, marker='s', zorder=5, edgecolors='black', linewidths=1.5)
+        ax.scatter(self.tb3_2_gt['x'].iloc[-1], self.tb3_2_gt['y'].iloc[-1], 
                    c='purple', s=150, marker='s', zorder=5, edgecolors='black', linewidths=1.5,
                    label='End Position')
         
@@ -157,21 +157,21 @@ class MultibotDataProcessor:
     
     def plot_position_error_comparison(self, save_path: str = None):
         """Plot position error comparison for both robots."""
-        if self.tb3_0_err is None or self.tb3_1_err is None:
+        if self.tb3_1_err is None or self.tb3_2_err is None:
             print("Data not loaded. Call load_data() first.")
             return
         
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
         
-        # TB3_0 position error
-        ax1.plot(self.tb3_0_err['time'], self.tb3_0_err['position_error'], 
-                 'b-', linewidth=1.2, alpha=0.8, label='TB3_0 Position Error')
-        ax1.fill_between(self.tb3_0_err['time'], 0, self.tb3_0_err['position_error'], 
+        # tb3_1 position error
+        ax1.plot(self.tb3_1_err['time'], self.tb3_1_err['position_error'], 
+                 'b-', linewidth=1.2, alpha=0.8, label='tb3_1 Position Error')
+        ax1.fill_between(self.tb3_1_err['time'], 0, self.tb3_1_err['position_error'], 
                          alpha=0.3, color='blue')
         
-        # Calculate TB3_0 statistics
-        rmse_0 = np.sqrt(np.mean(self.tb3_0_err['position_error']**2))
-        mean_0 = self.tb3_0_err['position_error'].mean()
+        # Calculate tb3_1 statistics
+        rmse_0 = np.sqrt(np.mean(self.tb3_1_err['position_error']**2))
+        mean_0 = self.tb3_1_err['position_error'].mean()
         
         ax1.axhline(y=rmse_0, color='red', linestyle='--', linewidth=2, 
                     label=f'RMSE: {rmse_0:.4f} m')
@@ -179,20 +179,20 @@ class MultibotDataProcessor:
                     label=f'Mean: {mean_0:.4f} m')
         
         ax1.set_ylabel('Position Error (m)', fontsize=12, fontweight='bold')
-        ax1.set_title('TB3_0 Position Error vs Time', fontsize=13, fontweight='bold')
+        ax1.set_title('tb3_1 Position Error vs Time', fontsize=13, fontweight='bold')
         ax1.legend(loc='upper right', fontsize=10)
         ax1.grid(True, alpha=0.3)
         ax1.set_ylim(bottom=0)
         
-        # TB3_1 position error
-        ax2.plot(self.tb3_1_err['time'], self.tb3_1_err['position_error'], 
-                 'r-', linewidth=1.2, alpha=0.8, label='TB3_1 Position Error')
-        ax2.fill_between(self.tb3_1_err['time'], 0, self.tb3_1_err['position_error'], 
+        # tb3_2 position error
+        ax2.plot(self.tb3_2_err['time'], self.tb3_2_err['position_error'], 
+                 'r-', linewidth=1.2, alpha=0.8, label='tb3_2 Position Error')
+        ax2.fill_between(self.tb3_2_err['time'], 0, self.tb3_2_err['position_error'], 
                          alpha=0.3, color='red')
         
-        # Calculate TB3_1 statistics
-        rmse_1 = np.sqrt(np.mean(self.tb3_1_err['position_error']**2))
-        mean_1 = self.tb3_1_err['position_error'].mean()
+        # Calculate tb3_2 statistics
+        rmse_1 = np.sqrt(np.mean(self.tb3_2_err['position_error']**2))
+        mean_1 = self.tb3_2_err['position_error'].mean()
         
         ax2.axhline(y=rmse_1, color='darkred', linestyle='--', linewidth=2, 
                     label=f'RMSE: {rmse_1:.4f} m')
@@ -201,7 +201,7 @@ class MultibotDataProcessor:
         
         ax2.set_xlabel('Time (s)', fontsize=12, fontweight='bold')
         ax2.set_ylabel('Position Error (m)', fontsize=12, fontweight='bold')
-        ax2.set_title('TB3_1 Position Error vs Time', fontsize=13, fontweight='bold')
+        ax2.set_title('tb3_2 Position Error vs Time', fontsize=13, fontweight='bold')
         ax2.legend(loc='upper right', fontsize=10)
         ax2.grid(True, alpha=0.3)
         ax2.set_xlim(left=0)
@@ -220,51 +220,51 @@ class MultibotDataProcessor:
     
     def plot_yaw_error_comparison(self, save_path: str = None):
         """Plot yaw error comparison for both robots."""
-        if self.tb3_0_err is None or self.tb3_1_err is None:
+        if self.tb3_1_err is None or self.tb3_2_err is None:
             print("Data not loaded. Call load_data() first.")
             return
         
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
         
         # Convert to degrees
-        yaw_error_0_deg = np.degrees(self.tb3_0_err['yaw_error'])
-        yaw_error_1_deg = np.degrees(self.tb3_1_err['yaw_error'])
+        yaw_error_0_deg = np.degrees(self.tb3_1_err['yaw_error'])
+        yaw_error_1_deg = np.degrees(self.tb3_2_err['yaw_error'])
         
-        # TB3_0 yaw error
-        ax1.plot(self.tb3_0_err['time'], yaw_error_0_deg, 
-                 'b-', linewidth=1.2, alpha=0.8, label='TB3_0 Yaw Error')
-        ax1.fill_between(self.tb3_0_err['time'], 0, yaw_error_0_deg, 
+        # tb3_1 yaw error
+        ax1.plot(self.tb3_1_err['time'], yaw_error_0_deg, 
+                 'b-', linewidth=1.2, alpha=0.8, label='tb3_1 Yaw Error')
+        ax1.fill_between(self.tb3_1_err['time'], 0, yaw_error_0_deg, 
                          where=(yaw_error_0_deg >= 0), alpha=0.3, color='blue')
-        ax1.fill_between(self.tb3_0_err['time'], 0, yaw_error_0_deg, 
+        ax1.fill_between(self.tb3_1_err['time'], 0, yaw_error_0_deg, 
                          where=(yaw_error_0_deg < 0), alpha=0.3, color='cyan')
         
-        # Calculate TB3_0 statistics
+        # Calculate tb3_1 statistics
         rmse_0 = np.sqrt(np.mean(yaw_error_0_deg**2))
         ax1.axhline(y=rmse_0, color='red', linestyle='--', linewidth=2, label=f'RMSE: {rmse_0:.2f}°')
         ax1.axhline(y=-rmse_0, color='red', linestyle='--', linewidth=2)
         
         ax1.set_ylabel('Yaw Error (degrees)', fontsize=12, fontweight='bold')
-        ax1.set_title('TB3_0 Yaw Error vs Time', fontsize=13, fontweight='bold')
+        ax1.set_title('tb3_1 Yaw Error vs Time', fontsize=13, fontweight='bold')
         ax1.legend(loc='upper right', fontsize=10)
         ax1.grid(True, alpha=0.3)
         ax1.axhline(y=0, color='black', linestyle='-', linewidth=0.8, alpha=0.5)
         
-        # TB3_1 yaw error
-        ax2.plot(self.tb3_1_err['time'], yaw_error_1_deg, 
-                 'r-', linewidth=1.2, alpha=0.8, label='TB3_1 Yaw Error')
-        ax2.fill_between(self.tb3_1_err['time'], 0, yaw_error_1_deg, 
+        # tb3_2 yaw error
+        ax2.plot(self.tb3_2_err['time'], yaw_error_1_deg, 
+                 'r-', linewidth=1.2, alpha=0.8, label='tb3_2 Yaw Error')
+        ax2.fill_between(self.tb3_2_err['time'], 0, yaw_error_1_deg, 
                          where=(yaw_error_1_deg >= 0), alpha=0.3, color='red')
-        ax2.fill_between(self.tb3_1_err['time'], 0, yaw_error_1_deg, 
+        ax2.fill_between(self.tb3_2_err['time'], 0, yaw_error_1_deg, 
                          where=(yaw_error_1_deg < 0), alpha=0.3, color='orange')
         
-        # Calculate TB3_1 statistics
+        # Calculate tb3_2 statistics
         rmse_1 = np.sqrt(np.mean(yaw_error_1_deg**2))
         ax2.axhline(y=rmse_1, color='darkred', linestyle='--', linewidth=2, label=f'RMSE: {rmse_1:.2f}°')
         ax2.axhline(y=-rmse_1, color='darkred', linestyle='--', linewidth=2)
         
         ax2.set_xlabel('Time (s)', fontsize=12, fontweight='bold')
         ax2.set_ylabel('Yaw Error (degrees)', fontsize=12, fontweight='bold')
-        ax2.set_title('TB3_1 Yaw Error vs Time', fontsize=13, fontweight='bold')
+        ax2.set_title('tb3_2 Yaw Error vs Time', fontsize=13, fontweight='bold')
         ax2.legend(loc='upper right', fontsize=10)
         ax2.grid(True, alpha=0.3)
         ax2.set_xlim(left=0)
@@ -283,33 +283,33 @@ class MultibotDataProcessor:
     
     def plot_statistics_comparison(self, save_path: str = None):
         """Plot bar chart comparing error statistics for both robots."""
-        if self.tb3_0_err is None or self.tb3_1_err is None:
+        if self.tb3_1_err is None or self.tb3_2_err is None:
             print("Data not loaded. Call load_data() first.")
             return
         
         # Calculate statistics
-        pos_rmse_0 = np.sqrt(np.mean(self.tb3_0_err['position_error']**2))
-        pos_mean_0 = self.tb3_0_err['position_error'].mean()
-        yaw_rmse_0 = np.sqrt(np.mean(np.degrees(self.tb3_0_err['yaw_error'])**2))
-        yaw_mean_0 = np.mean(np.abs(np.degrees(self.tb3_0_err['yaw_error'])))
+        pos_rmse_0 = np.sqrt(np.mean(self.tb3_1_err['position_error']**2))
+        pos_mean_0 = self.tb3_1_err['position_error'].mean()
+        yaw_rmse_0 = np.sqrt(np.mean(np.degrees(self.tb3_1_err['yaw_error'])**2))
+        yaw_mean_0 = np.mean(np.abs(np.degrees(self.tb3_1_err['yaw_error'])))
         
-        pos_rmse_1 = np.sqrt(np.mean(self.tb3_1_err['position_error']**2))
-        pos_mean_1 = self.tb3_1_err['position_error'].mean()
-        yaw_rmse_1 = np.sqrt(np.mean(np.degrees(self.tb3_1_err['yaw_error'])**2))
-        yaw_mean_1 = np.mean(np.abs(np.degrees(self.tb3_1_err['yaw_error'])))
+        pos_rmse_1 = np.sqrt(np.mean(self.tb3_2_err['position_error']**2))
+        pos_mean_1 = self.tb3_2_err['position_error'].mean()
+        yaw_rmse_1 = np.sqrt(np.mean(np.degrees(self.tb3_2_err['yaw_error'])**2))
+        yaw_mean_1 = np.mean(np.abs(np.degrees(self.tb3_2_err['yaw_error'])))
         
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
         
         # Position error statistics
         categories = ['RMSE', 'Mean']
-        tb3_0_pos = [pos_rmse_0 * 100, pos_mean_0 * 100]  # Convert to cm
-        tb3_1_pos = [pos_rmse_1 * 100, pos_mean_1 * 100]
+        tb3_1_pos = [pos_rmse_0 * 100, pos_mean_0 * 100]  # Convert to cm
+        tb3_2_pos = [pos_rmse_1 * 100, pos_mean_1 * 100]
         
         x = np.arange(len(categories))
         width = 0.35
         
-        bars1 = ax1.bar(x - width/2, tb3_0_pos, width, label='TB3_0', color='blue', alpha=0.8)
-        bars2 = ax1.bar(x + width/2, tb3_1_pos, width, label='TB3_1', color='red', alpha=0.8)
+        bars1 = ax1.bar(x - width/2, tb3_1_pos, width, label='tb3_1', color='blue', alpha=0.8)
+        bars2 = ax1.bar(x + width/2, tb3_2_pos, width, label='tb3_2', color='red', alpha=0.8)
         
         ax1.set_xlabel('Metric', fontsize=12, fontweight='bold')
         ax1.set_ylabel('Position Error (cm)', fontsize=12, fontweight='bold')
@@ -328,11 +328,11 @@ class MultibotDataProcessor:
                         ha='center', va='bottom', fontsize=9)
         
         # Yaw error statistics
-        tb3_0_yaw = [yaw_rmse_0, yaw_mean_0]
-        tb3_1_yaw = [yaw_rmse_1, yaw_mean_1]
+        tb3_1_yaw = [yaw_rmse_0, yaw_mean_0]
+        tb3_2_yaw = [yaw_rmse_1, yaw_mean_1]
         
-        bars3 = ax2.bar(x - width/2, tb3_0_yaw, width, label='TB3_0', color='blue', alpha=0.8)
-        bars4 = ax2.bar(x + width/2, tb3_1_yaw, width, label='TB3_1', color='red', alpha=0.8)
+        bars3 = ax2.bar(x - width/2, tb3_1_yaw, width, label='tb3_1', color='blue', alpha=0.8)
+        bars4 = ax2.bar(x + width/2, tb3_2_yaw, width, label='tb3_2', color='red', alpha=0.8)
         
         ax2.set_xlabel('Metric', fontsize=12, fontweight='bold')
         ax2.set_ylabel('Yaw Error (degrees)', fontsize=12, fontweight='bold')
@@ -363,18 +363,18 @@ class MultibotDataProcessor:
     
     def plot_error_distribution(self, save_path: str = None):
         """Plot histogram of error distribution for both robots."""
-        if self.tb3_0_err is None or self.tb3_1_err is None:
+        if self.tb3_1_err is None or self.tb3_2_err is None:
             print("Data not loaded. Call load_data() first.")
             return
         
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
         
         # Position error distribution
-        pos_err_0 = self.tb3_0_err['position_error'] * 100  # Convert to cm
-        pos_err_1 = self.tb3_1_err['position_error'] * 100
+        pos_err_0 = self.tb3_1_err['position_error'] * 100  # Convert to cm
+        pos_err_1 = self.tb3_2_err['position_error'] * 100
         
-        ax1.hist(pos_err_0, bins=30, alpha=0.6, color='blue', label='TB3_0', edgecolor='black')
-        ax1.hist(pos_err_1, bins=30, alpha=0.6, color='red', label='TB3_1', edgecolor='black')
+        ax1.hist(pos_err_0, bins=30, alpha=0.6, color='blue', label='tb3_1', edgecolor='black')
+        ax1.hist(pos_err_1, bins=30, alpha=0.6, color='red', label='tb3_2', edgecolor='black')
         
         ax1.set_xlabel('Position Error (cm)', fontsize=12, fontweight='bold')
         ax1.set_ylabel('Frequency', fontsize=12, fontweight='bold')
@@ -383,11 +383,11 @@ class MultibotDataProcessor:
         ax1.grid(True, alpha=0.3, axis='y')
         
         # Yaw error distribution
-        yaw_err_0 = np.degrees(self.tb3_0_err['yaw_error'])
-        yaw_err_1 = np.degrees(self.tb3_1_err['yaw_error'])
+        yaw_err_0 = np.degrees(self.tb3_1_err['yaw_error'])
+        yaw_err_1 = np.degrees(self.tb3_2_err['yaw_error'])
         
-        ax2.hist(yaw_err_0, bins=30, alpha=0.6, color='blue', label='TB3_0', edgecolor='black')
-        ax2.hist(yaw_err_1, bins=30, alpha=0.6, color='red', label='TB3_1', edgecolor='black')
+        ax2.hist(yaw_err_0, bins=30, alpha=0.6, color='blue', label='tb3_1', edgecolor='black')
+        ax2.hist(yaw_err_1, bins=30, alpha=0.6, color='red', label='tb3_2', edgecolor='black')
         
         ax2.set_xlabel('Yaw Error (degrees)', fontsize=12, fontweight='bold')
         ax2.set_ylabel('Frequency', fontsize=12, fontweight='bold')
@@ -408,21 +408,21 @@ class MultibotDataProcessor:
     
     def plot_xy_error_scatter(self, save_path: str = None):
         """Plot XY error scatter plot for both robots."""
-        if self.tb3_0_err is None or self.tb3_1_err is None:
+        if self.tb3_1_err is None or self.tb3_2_err is None:
             print("Data not loaded. Call load_data() first.")
             return
         
         fig, ax = plt.subplots(figsize=(10, 10))
         
         # Convert to cm
-        x_err_0 = self.tb3_0_err['x_error'] * 100
-        y_err_0 = self.tb3_0_err['y_error'] * 100
-        x_err_1 = self.tb3_1_err['x_error'] * 100
-        y_err_1 = self.tb3_1_err['y_error'] * 100
+        x_err_0 = self.tb3_1_err['x_error'] * 100
+        y_err_0 = self.tb3_1_err['y_error'] * 100
+        x_err_1 = self.tb3_2_err['x_error'] * 100
+        y_err_1 = self.tb3_2_err['y_error'] * 100
         
         # Scatter plots
-        ax.scatter(x_err_0, y_err_0, c='blue', alpha=0.5, s=20, label='TB3_0', edgecolors='none')
-        ax.scatter(x_err_1, y_err_1, c='red', alpha=0.5, s=20, label='TB3_1', edgecolors='none')
+        ax.scatter(x_err_0, y_err_0, c='blue', alpha=0.5, s=20, label='tb3_1', edgecolors='none')
+        ax.scatter(x_err_1, y_err_1, c='red', alpha=0.5, s=20, label='tb3_2', edgecolors='none')
         
         # Add origin lines
         ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8, alpha=0.5)
