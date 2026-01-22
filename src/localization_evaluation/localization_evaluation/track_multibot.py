@@ -330,7 +330,7 @@ class MultiRobotTrackPublisher(Node):
     # - 'tb3_3': Third robot, topics are /tb3_3/cmd_vel, /tb3_3/odom
     # - 'tb3_4': Fourth robot, topics are /tb3_4/cmd_vel, /tb3_4/odom
     ROBOTS_CONFIG = {
-        '': {  # Robot 1 - no namespace
+        'tb3_1': {  # Robot 1 - no namespace
             'start': (-2.0, -0.5),
             'waypoints': [
                 (-2.0, -0.5),   # Start
@@ -407,7 +407,7 @@ class MultiRobotTrackPublisher(Node):
         
         # Select the robots to run (select the first N in dictionary order)
         # Note: The empty string comes first, so the order is: '', 'tb3_2', 'tb3_3', 'tb3_4'
-        all_robot_keys = ['', 'tb3_2', 'tb3_3', 'tb3_4']
+        all_robot_keys = ['tb3_1', 'tb3_2', 'tb3_3', 'tb3_4']
         selected_keys = all_robot_keys[:num_robots]
         
         self.get_logger().info('='*60)
