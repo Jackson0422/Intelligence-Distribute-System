@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <sdf version="1.5">
-  <model name="tb3_2">
+  <model name="__ROBOT__">
     <pose>0.0 0.0 0.0 0.0 0.0 0.0</pose>
 
     <link name="base_footprint"/>
@@ -92,7 +92,7 @@
         </imu>
         <plugin name="turtlebot3_imu" filename="libgazebo_ros_imu_sensor.so">
           <ros>
-            <namespace>/tb3_2</namespace>
+            <namespace>/__ROBOT__</namespace>
             <remapping>~/out:=imu</remapping>
           </ros>
         </plugin>
@@ -164,11 +164,11 @@
         </ray>
         <plugin name="turtlebot3_laserscan" filename="libgazebo_ros_ray_sensor.so">
           <ros>
-            <namespace>/tb3_2</namespace>
+            <namespace>/__ROBOT__</namespace>
             <remapping>~/out:=scan</remapping>
           </ros>
           <output_type>sensor_msgs/LaserScan</output_type>
-          <frame_name>tb3_2/base_scan</frame_name>
+          <frame_name>__ROBOT__/base_scan</frame_name>
         </plugin>
       </sensor>
     </link>
@@ -379,7 +379,7 @@
     <plugin name="turtlebot3_diff_drive" filename="libgazebo_ros_diff_drive.so">
 
       <ros>
-        <namespace>/tb3_2</namespace>
+        <namespace>/__ROBOT__</namespace>
       </ros>
 
       <update_rate>30</update_rate>
@@ -404,14 +404,14 @@
       <publish_wheel_tf>false</publish_wheel_tf>
 
       <odometry_topic>odom</odometry_topic>
-      <odometry_frame>tb3_2/odom</odometry_frame>
-      <robot_base_frame>tb3_2/base_footprint</robot_base_frame>
+      <odometry_frame>__ROBOT__/odom</odometry_frame>
+      <robot_base_frame>__ROBOT__/base_footprint</robot_base_frame>
 
     </plugin>
 
     <plugin name="turtlebot3_joint_state" filename="libgazebo_ros_joint_state_publisher.so">
       <ros>
-        <namespace>/tb3_2</namespace>
+        <namespace>/__ROBOT__</namespace>
         <remapping>~/out:=joint_states</remapping>
       </ros>
       <update_rate>30</update_rate>

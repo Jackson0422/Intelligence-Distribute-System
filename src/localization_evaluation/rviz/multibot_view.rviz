@@ -1,0 +1,435 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 160; 160; 160
+      Enabled: true
+      Line Style:
+        Line Width: 0.03
+        Value: Lines
+      Name: Grid
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: map
+      Value: true
+    - Alpha: 1
+      Class: rviz_default_plugins/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /map
+      Unreliable: false
+      Use Timestamp: false
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.35
+      Name: map
+      Radius: 0.02
+      Reference Frame: map
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.1
+      Name: tb3_1_base_footprint_axes
+      Radius: 0.01
+      Reference Frame: tb3_1/base_footprint
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.1
+      Name: tb3_2_base_footprint_axes
+      Radius: 0.01
+      Reference Frame: tb3_2/base_footprint
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.1
+      Name: tb3_3_base_footprint_axes
+      Radius: 0.01
+      Reference Frame: tb3_3/base_footprint
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.1
+      Name: tb3_4_base_footprint_axes
+      Radius: 0.01
+      Reference Frame: tb3_4/base_footprint
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.1
+      Name: tb3_5_base_footprint_axes
+      Radius: 0.01
+      Reference Frame: tb3_5/base_footprint
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.1
+      Name: tb3_6_base_footprint_axes
+      Radius: 0.01
+      Reference Frame: tb3_6/base_footprint
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.1
+      Name: tb3_7_base_footprint_axes
+      Radius: 0.01
+      Reference Frame: tb3_7/base_footprint
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Length: 0.1
+      Name: tb3_8_base_footprint_axes
+      Radius: 0.01
+      Reference Frame: tb3_8/base_footprint
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_1_gt
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_1/ground_truth
+      Axes Length: 0.3
+      Axes Radius: 0.02
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_1_amcl
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_1/amcl_pose
+      Axes Length: 0.25
+      Axes Radius: 0.02
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_1_coloc
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_1/coloc_pose
+      Axes Length: 0.35
+      Axes Radius: 0.025
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_2_gt
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_2/ground_truth
+      Axes Length: 0.3
+      Axes Radius: 0.02
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_2_amcl
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_2/amcl_pose
+      Axes Length: 0.25
+      Axes Radius: 0.02
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_2_coloc
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_2/coloc_pose
+      Axes Length: 0.35
+      Axes Radius: 0.025
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_3_gt
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_3/ground_truth
+      Axes Length: 0.3
+      Axes Radius: 0.02
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_3_amcl
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_3/amcl_pose
+      Axes Length: 0.25
+      Axes Radius: 0.02
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_3_coloc
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_3/coloc_pose
+      Axes Length: 0.35
+      Axes Radius: 0.025
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_4_gt
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_4/ground_truth
+      Axes Length: 0.3
+      Axes Radius: 0.02
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_4_amcl
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_4/amcl_pose
+      Axes Length: 0.25
+      Axes Radius: 0.02
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/Pose
+      Enabled: true
+      Name: tb3_4_coloc
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_4/coloc_pose
+      Axes Length: 0.35
+      Axes Radius: 0.025
+      Shape: Axes
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: LocalizationMarkers
+      Namespaces:
+        tb3_1: true
+        tb3_2: true
+        tb3_3: true
+        tb3_4: true
+        tb3_5: true
+        tb3_6: true
+        tb3_7: true
+        tb3_8: true
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /localization_markers
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: tb3_1_scan
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_1/scan
+      Color: 255; 0; 0
+      Size (Pixels): 3
+      Style: Squares
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: tb3_2_scan
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_2/scan
+      Color: 0; 255; 0
+      Size (Pixels): 3
+      Style: Squares
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: tb3_3_scan
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_3/scan
+      Color: 0; 0; 255
+      Size (Pixels): 3
+      Style: Squares
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: tb3_4_scan
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_4/scan
+      Color: 255; 255; 0
+      Size (Pixels): 3
+      Style: Squares
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: tb3_5_scan
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_5/scan
+      Color: 255; 255; 0
+      Size (Pixels): 3
+      Style: Squares
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: tb3_6_scan
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_6/scan
+      Color: 255; 255; 0
+      Size (Pixels): 3
+      Style: Squares
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: tb3_7_scan
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_7/scan
+      Color: 255; 255; 0
+      Size (Pixels): 3
+      Style: Squares
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: tb3_8_scan
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_8/scan
+      Color: 255; 255; 0
+      Size (Pixels): 3
+      Style: Squares
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic: /initialpose
+      Frame: map
+    - Class: rviz_default_plugins/SetGoal
+      Topic: /goal_pose
+    - Class: rviz_default_plugins/PublishPoint
+      Single click: true
+      Topic: /clicked_point
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 8
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.06
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      FOV: 0.785398
+      Name: Orbit
+      Near Clip Distance: 0.01
+      Pitch: 0.5
+      Target Frame: map
+      Yaw: 1.5
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 1080
+  Hide Left Dock: true
+  Hide Right Dock: true
+  Width: 1920
+  X: 0
+  Y: 0

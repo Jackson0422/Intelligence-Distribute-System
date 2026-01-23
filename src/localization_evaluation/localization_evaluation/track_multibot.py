@@ -304,13 +304,13 @@ class RobotController:
         # Warning: Too close to an obstacle
         if min_distance < 0.15:
             self.node.get_logger().error(
-                f'[{self.display_name}] ⚠️⚠️ Danger! Only {min_distance:.3f}m away from an obstacle!'
+                f'[{self.display_name}] Danger! Only {min_distance:.3f}m away from an obstacle!'
                 f' Obstacle position: ({closest_obstacle[0]:.2f}, {closest_obstacle[1]:.2f}), '
                 f'Radius: {closest_obstacle[2]:.2f}m'
             )
         elif min_distance < 0.30:
             self.node.get_logger().warn(
-                f'[{self.display_name}] ⚠️ Approaching an obstacle: {min_distance:.3f}m'
+                f'[{self.display_name}] Approaching an obstacle: {min_distance:.3f}m'
             )
         else:
             self.node.get_logger().info(
@@ -325,12 +325,12 @@ class MultiRobotTrackPublisher(Node):
     
     # ========== Robot Configuration ==========
     # Namespace explanation:
-    # - '' (empty string): First robot, topics are /cmd_vel, /odom
+    # - 'tb3_1' (empty string): First robot, topics are /tb3_1/cmd_vel, /tb3_1/odom
     # - 'tb3_2': Second robot, topics are /tb3_2/cmd_vel, /tb3_2/odom
     # - 'tb3_3': Third robot, topics are /tb3_3/cmd_vel, /tb3_3/odom
     # - 'tb3_4': Fourth robot, topics are /tb3_4/cmd_vel, /tb3_4/odom
     ROBOTS_CONFIG = {
-        '': {  # Robot 1 - no namespace
+        'tb3_1': {  # Robot 1 - no namespace
             'start': (-2.0, -0.5),
             'waypoints': [
                 (-2.0, -0.5),   # Start
@@ -406,8 +406,8 @@ class MultiRobotTrackPublisher(Node):
             raise ValueError(f'Invalid num_robots: {num_robots}')
         
         # Select the robots to run (select the first N in dictionary order)
-        # Note: The empty string comes first, so the order is: '', 'tb3_2', 'tb3_3', 'tb3_4'
-        all_robot_keys = ['', 'tb3_2', 'tb3_3', 'tb3_4']
+        # Note: The empty string comes first, so the order is: 'tb3_1', 'tb3_2', 'tb3_3', 'tb3_4'
+        all_robot_keys = ['tb3_1', 'tb3_2', 'tb3_3', 'tb3_4']
         selected_keys = all_robot_keys[:num_robots]
         
         self.get_logger().info('='*60)

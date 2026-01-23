@@ -120,7 +120,8 @@ class DecentralizedColocAgent(Node):
         )
 
         # Publish visualization markers on separate topics for easier toggling in Rviz
-        viz_ns = self._get_topic_name('viz')
+        # Always use namespaced viz topics (even for tb3_1)
+        viz_ns = f'/{self.robot_id}/viz'
         self.pub_viz_self = self.create_publisher(Marker, f'{viz_ns}/self_pose', 10)
         self.pub_viz_peer = self.create_publisher(Marker, f'{viz_ns}/peer_measurement', 10)
         self.pub_viz_inferred = self.create_publisher(Marker, f'{viz_ns}/inferred_pose', 10)
@@ -466,12 +467,8 @@ class DecentralizedColocAgent(Node):
     def _get_topic_name(self, topic_base: str, for_peer_id: str = None) -> str:
         """Get a namespaced topic name, handling the special case for tb3_1."""
         robot_id = for_peer_id if for_peer_id is not None else self.robot_id
-        if robot_id == 'tb3_1':
-            # tb3_1 uses global topics
-            return f'/{topic_base}'
-        else:
-            # Other robots use namespaced topics
-            return f'/{robot_id}/{topic_base}'
+        # Always use namespaced topics for all robots
+        return f'/{robot_id}/{topic_base}'
 
     def _get_base_frame(self, robot_id):
         """
@@ -480,14 +477,8 @@ class DecentralizedColocAgent(Node):
 
         Args:
             robot_id: 'tb3_1', 'tb3_2', 'tb3_3', 'tb3_4'
-
-        Returns:
-            TF frame name (tb3_1 has no prefix, others are namespaced)
         """
-        if robot_id == 'tb3_1':
-            return 'base_footprint'
-        else:
-            return f'{robot_id}/base_footprint'
+        return f'{robot_id}/base_footprint'
 
     def generate_relative_observation(self, peer_id):
         """
@@ -697,10 +688,39 @@ class DecentralizedColocAgent(Node):
         m4.scale.x = 0.05; m4.scale.y = 0.1; m4.scale.z = 0.1
         m4.color.a = 0.8; m4.color.r = 1.0; m4.color.g = 1.0; m4.color.b = 0.0 # Yellow
         
+        # 5. Magenta Sphere: Ground Truth Position of Peer Robot (from TF)
+        m5 = Marker()
+        m5.header.frame_id = frame_id
+        m5.header.stamp = timestamp
+        m5.ns = f"peer_ground_truth_{peer_id}"
+        m5.id = 4
+        m5.type = Marker.SPHERE
+        m5.action = Marker.ADD
+        
+        try:
+            # Query the peer's actual transform in the map frame
+            peer_frame = self._get_base_frame(peer_id)
+            if self.tf_buffer.can_transform(frame_id, peer_frame, rclpy.time.Time()):
+                tf_peer = self.tf_buffer.lookup_transform(frame_id, peer_frame, rclpy.time.Time())
+                m5.pose.position.x = tf_peer.transform.translation.x
+                m5.pose.position.y = tf_peer.transform.translation.y
+                m5.pose.position.z = 0.3
+                m5.pose.orientation.x = tf_peer.transform.rotation.x
+                m5.pose.orientation.y = tf_peer.transform.rotation.y
+                m5.pose.orientation.z = tf_peer.transform.rotation.z
+                m5.pose.orientation.w = tf_peer.transform.rotation.w
+                m5.scale.x = 0.2; m5.scale.y = 0.2; m5.scale.z = 0.2
+                m5.color.a = 1.0; m5.color.r = 1.0; m5.color.g = 0.0; m5.color.b = 1.0 # Magenta
+            else:
+                return  # Can't get ground truth, skip visualization
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            return  # TF lookup failed, skip visualization
+        
         self.pub_viz_self.publish(m1)
         self.pub_viz_peer.publish(m2)
         self.pub_viz_inferred.publish(m3)
         self.pub_viz_arrow.publish(m4)
+        self.pub_viz_peer.publish(m5)  # Reusing peer publisher for ground truth
 
     def print_statistics(self):
         """Print statistics."""

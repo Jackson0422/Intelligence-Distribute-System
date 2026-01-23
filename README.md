@@ -59,6 +59,15 @@ Defined in `multibot_gazebo.launch.py`:
 | tb3_3  | (-1.0, -1.5)   | 0.0 rad          |
 | tb3_4  | (2.0, 0.0)     | 0.0 rad          |
 
+### Visualization & Map
+
+- Use `launch/visualize_multibot.launch.py` to start Gazebo → AMCL → RViz; it now defaults to `rviz/multibot_view.rviz`, which shows TF axes and laser scans for all robots. Zoom/scroll to view the full map.
+- Choose a map with the `map:=` launch arg. Provided options under `maps/`:
+  - `maps/empty_map.yaml` (20×20 m, all free)
+  - `maps/square_walls_map.yaml` (20×20 m, perimeter walls, no interior obstacles)
+  - `maps/turtle_world.yaml` (alias to the TurtleBot3 map in `/opt/ros/humble/share/turtlebot3_navigation2/map`)
+- Keep `param/nav2_params_exp.yaml` as the shared, scalable AMCL template (`use_shared_params:=true`). Per-robot YAMLs remain supported but are optional when scaling robot count.
+
 ### Waypoints
 
 Defined in `track_multibot.py` (lines 361-393):
@@ -154,6 +163,12 @@ ids_roswk/
 ```
 
 ## 🔬 Technical Details
+
+### Localization Equations
+
+- **AMCL (particle filter)**: Particles `{x_k^i, w_k^i}` updated with motion model `x_k^i ~ p(x_k | x_{k-1}^i, u_k)` and weighted by sensor likelihood `w_k^i ∝ p(z_k | x_k^i)`. Normalization enforces `∑ w_k^i = 1`.
+- **Relative observation from peer j**: For a range/bearing measurement `z_ij = h(x_i, x_j) + v`, the innovation covariance is `S = H_i P_i H_iᵀ + H_j P_j H_jᵀ + R_ij`. EKF-style update: `x̂_i⁺ = x̂_i⁻ + K r`, `P_i⁺ = (I − K H_i) P_i⁻`, `r = z_ij − h(x̂_i⁻, x̂_j⁻)`.
+- **Covariance Intersection (robust fusion)**: If correlation is unknown, fuse with `P_ci = (ω P_i⁻¹ + (1−ω) P_j⁻¹)⁻¹`, `x̂_ci = P_ci (ω P_i⁻¹ x̂_i + (1−ω) P_j⁻¹ x̂_j)`, choosing `ω ∈ [0,1]` to stay conservative.
 
 ### Collaborative Localization Algorithm
 
