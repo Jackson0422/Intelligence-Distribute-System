@@ -15,9 +15,11 @@ class JitterMotion(Node):
         
         self.declare_parameter('num_robots', 2)
         self.declare_parameter('angular_vel', 0.05)  # Very slow rotation (rad/s)
+        self.declare_parameter('flip_period', 10.0)  # Seconds before reversing; <=0 disables reversal
         
         num_robots = self.get_parameter('num_robots').value
         angular_vel = self.get_parameter('angular_vel').value
+        flip_period = float(self.get_parameter('flip_period').value)
         
         # Create publishers for each robot
         self.cmd_vel_pubs = []
@@ -26,11 +28,19 @@ class JitterMotion(Node):
             self.cmd_vel_pubs.append(pub)
         
         # Timer to publish jitter commands
-        self.timer = self.create_timer(0.1, self.publish_jitter)  # 10Hz
+        self.timer_period = 0.1
+        self.timer = self.create_timer(self.timer_period, self.publish_jitter)  # 10Hz
         self.angular_vel = angular_vel
+        self.flip_period = flip_period
         self.direction = 1  # Alternate direction
         self.counter = 0
-        self.get_logger().info(f'Jitter motion started for {num_robots} robots with {angular_vel} rad/s')
+        self.flip_ticks = None
+        if self.flip_period > 0.0:
+            self.flip_ticks = max(1, int(round(self.flip_period / self.timer_period)))
+        self.get_logger().info(
+            f'Jitter motion started for {num_robots} robots with {angular_vel} rad/s, '
+            f'flip_period={self.flip_period}s'
+        )
     
     def publish_jitter(self):
         twist = Twist()
@@ -39,10 +49,9 @@ class JitterMotion(Node):
         for pub in self.cmd_vel_pubs:
             pub.publish(twist)
         
-        # Alternate direction every 3 seconds (30 callbacks at 10Hz)
-        # This keeps robots roughly in place while providing motion for AMCL
+        # Alternate direction every flip_period seconds to keep robots near their spawn
         self.counter += 1
-        if self.counter >= 30:
+        if self.flip_ticks is not None and self.counter >= self.flip_ticks:
             self.direction *= -1
             self.counter = 0
 

@@ -20,7 +20,7 @@ from ament_index_python.packages import get_package_share_directory
 class RobotState:
     gt: Optional[PoseStamped] = None
     amcl: Optional[PoseWithCovarianceStamped] = None
-    coloc: Optional[PoseStamped] = None
+    coloc: Optional[PoseWithCovarianceStamped] = None
     odom: Optional[Odometry] = None
 
 
@@ -70,7 +70,7 @@ class GroundTruthLogger(Node):
                 10,
             )
             self.create_subscription(
-                PoseStamped,
+                PoseWithCovarianceStamped,
                 f'/{name}/coloc_pose',
                 lambda msg, n=name: self._on_coloc(msg, n),
                 10,
@@ -146,7 +146,7 @@ class GroundTruthLogger(Node):
                         10,
                     )
                     self.create_subscription(
-                        PoseStamped,
+                        PoseWithCovarianceStamped,
                         f'/{name}/coloc_pose',
                         lambda msg, n=name: self._on_coloc(msg, n),
                         10,
@@ -177,7 +177,7 @@ class GroundTruthLogger(Node):
     def _on_amcl(self, msg: PoseWithCovarianceStamped, robot_name: str):
         self.state[robot_name].amcl = msg
 
-    def _on_coloc(self, msg: PoseStamped, robot_name: str):
+    def _on_coloc(self, msg: PoseWithCovarianceStamped, robot_name: str):
         self.state[robot_name].coloc = msg
 
     def _on_odom(self, msg: Odometry, robot_name: str):
@@ -222,7 +222,7 @@ class GroundTruthLogger(Node):
 
             gt_vals = pose_fields(gt.pose) if gt else ('', '', '')
             amcl_vals = pose_fields(amcl.pose.pose) if amcl else ('', '', '')
-            coloc_vals = pose_fields(coloc.pose) if coloc else ('', '', '')
+            coloc_vals = pose_fields(coloc.pose.pose) if coloc else ('', '', '')
 
             if self.logger:
                 self.logger.writerow([
@@ -309,9 +309,32 @@ class GroundTruthLogger(Node):
                 marker_all.markers.append(m)
                 marker_coloc.markers.append(m)
                 hist = self.path_history[name]['coloc']
-                hist.append(coloc)
+                ps = PoseStamped()
+                ps.header = coloc.header
+                ps.pose = coloc.pose.pose
+                hist.append(ps)
                 if len(hist) > self.path_history_limit:
                     del hist[0]
+            if amcl and coloc:
+                # Correction vector: AMCL -> Coloc to visualize collaborative adjustment
+                start = copy.deepcopy(amcl.pose.pose.position)
+                end = copy.deepcopy(coloc.pose.pose.position)
+                start.z = 0.1
+                end.z = 0.1
+                m = Marker()
+                m.header.frame_id = 'map'
+                m.header.stamp = stamp_msg
+                m.ns = f'{name}/correction'
+                m.id = mid_base + 4
+                m.type = Marker.ARROW
+                m.action = Marker.ADD
+                m.points = [start, end]
+                m.scale.x = 0.015
+                m.scale.y = 0.03
+                m.scale.z = 0.03
+                m.color.r, m.color.g, m.color.b, m.color.a = (1.0, 0.7, 0.0, 0.8)
+                marker_all.markers.append(m)
+                marker_coloc.markers.append(m)
 
         # Always publish the marker topics so RViz sees the namespaces/topics even if empty
         self.marker_pub.publish(marker_all)

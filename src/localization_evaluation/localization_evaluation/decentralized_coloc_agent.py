@@ -12,7 +12,7 @@ Author: Distributed Intelligent Systems Course
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Point
 from std_msgs.msg import String
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker
@@ -41,6 +41,21 @@ class DecentralizedColocAgent(Node):
         self.declare_parameter('gossip_rate', 1.0)  # Hz
         self.declare_parameter('peer_timeout', 3.0)  # seconds
         self.declare_parameter('correction_threshold', 0.001)  # meters
+        self.declare_parameter('self_weight', 0.7)  # weight on AMCL vs consensus (0-1)
+        self.declare_parameter('max_correction', 0.8)  # meters, <=0 disables clamp
+        self.declare_parameter('min_covariance', 1e-4)  # floor for covariance diagonals
+        self.declare_parameter('max_peer_updates', 2)  # limit EKF updates per cycle (0 = no limit)
+        self.declare_parameter('ambiguity_distance', 0.3)  # meters, <=0 disables ambiguity check
+        self.declare_parameter('max_innovation_dist', 0.5)  # meters, <=0 disables gate
+        self.declare_parameter('debug_gt', False)  # subscribe to ground truth for debug
+        self.declare_parameter('robot_radius', self.ROBOT_RADIUS)  # meters
+        self.declare_parameter('peer_search_radius', 0.6)  # meters
+        self.declare_parameter('cluster_link_distance', 0.12)  # meters, <=0 uses robot_radius
+        self.declare_parameter('min_cluster_points', 4)
+        self.declare_parameter('cluster_extent_min', 0.05)  # meters, <=0 uses robot_radius
+        self.declare_parameter('cluster_extent_max', 0.45)  # meters, <=0 uses robot_radius
+        self.declare_parameter('cluster_span_max', 0.1)  # meters, <=0 disables span gate
+        self.declare_parameter('peer_detection_log_period', 1.0)  # seconds, <=0 logs every detection
         # EKF collaboration parameters
         self.declare_parameter('relative_obs_std_xy', 0.10)  # Relative observation xy noise (m)
         self.declare_parameter('relative_obs_std_yaw', 0.087)  # Relative observation yaw noise (rad, ~5 deg)
@@ -53,12 +68,47 @@ class DecentralizedColocAgent(Node):
         self.gossip_rate = self.get_parameter('gossip_rate').value
         self.peer_timeout = self.get_parameter('peer_timeout').value
         self.correction_threshold = self.get_parameter('correction_threshold').value
+        self.self_weight = float(self.get_parameter('self_weight').value)
+        self.max_correction = float(self.get_parameter('max_correction').value)
+        self.min_covariance = float(self.get_parameter('min_covariance').value)
+        self.max_peer_updates = int(self.get_parameter('max_peer_updates').value)
+        self.ambiguity_distance = float(self.get_parameter('ambiguity_distance').value)
+        self.max_innovation_dist = float(self.get_parameter('max_innovation_dist').value)
+        self.debug_gt = bool(self.get_parameter('debug_gt').value)
+        self.robot_radius = float(self.get_parameter('robot_radius').value)
+        self.peer_search_radius = float(self.get_parameter('peer_search_radius').value)
+        self.cluster_link_distance = float(self.get_parameter('cluster_link_distance').value)
+        self.min_cluster_points = int(self.get_parameter('min_cluster_points').value)
+        self.cluster_extent_min = float(self.get_parameter('cluster_extent_min').value)
+        self.cluster_extent_max = float(self.get_parameter('cluster_extent_max').value)
+        self.cluster_span_max = float(self.get_parameter('cluster_span_max').value)
+        self.peer_detection_log_period = float(self.get_parameter('peer_detection_log_period').value)
 
         # Validate parameters
         if self.gossip_rate <= 0.0:
             raise ValueError(f"gossip_rate must be > 0, got {self.gossip_rate}")
         if self.peer_timeout <= 0.0:
             raise ValueError(f"peer_timeout must be > 0, got {self.peer_timeout}")
+        if self.self_weight < 0.0 or self.self_weight > 1.0:
+            self.get_logger().warning(
+                f'self_weight out of range [0,1], clamping from {self.self_weight}'
+            )
+            self.self_weight = min(1.0, max(0.0, self.self_weight))
+        if self.max_peer_updates < 0:
+            self.get_logger().warning(
+                f'max_peer_updates < 0, clamping from {self.max_peer_updates} to 0'
+            )
+            self.max_peer_updates = 0
+        if self.min_cluster_points < 1:
+            self.get_logger().warning(
+                f'min_cluster_points < 1, clamping from {self.min_cluster_points} to 1'
+            )
+            self.min_cluster_points = 1
+        if self.peer_detection_log_period < 0.0:
+            self.get_logger().warning(
+                f'peer_detection_log_period < 0, clamping from {self.peer_detection_log_period} to 0'
+            )
+            self.peer_detection_log_period = 0.0
 
         # State variables
         self.amcl_pose = None  # current AMCL estimate
@@ -67,6 +117,12 @@ class DecentralizedColocAgent(Node):
         self.last_scan = None  # Latest LIDAR scan
         self.peer_subs = []  # keep subscription handles to avoid GC
         self.last_stats_time = 0.0  # last stats print timestamp
+        self.last_consensus_stats = {}
+        self.last_correction_dist = None
+        self.last_correction_clamped = False
+        self.last_weight_used = None
+        self.gt_pose = None
+        self.last_peer_detection_log_time = {}
 
         # TF listener (for relative poses)
         self.tf_buffer = Buffer()
@@ -78,6 +134,16 @@ class DecentralizedColocAgent(Node):
 
         # Setup communication
         self._setup_communication()
+
+        if self.debug_gt:
+            gt_topic = f'/{self.robot_id}/ground_truth'
+            self.gt_sub = self.create_subscription(
+                PoseStamped,
+                gt_topic,
+                self.gt_callback,
+                10
+            )
+            self.get_logger().info(f'  Subscribed to ground truth: {gt_topic}')
 
         # Start Gossip timer
         gossip_period = 1.0 / self.gossip_rate
@@ -122,10 +188,12 @@ class DecentralizedColocAgent(Node):
         # Publish visualization markers on separate topics for easier toggling in Rviz
         # Always use namespaced viz topics (even for tb3_1)
         viz_ns = f'/{self.robot_id}/viz'
-        self.pub_viz_self = self.create_publisher(Marker, f'{viz_ns}/self_pose', 10)
+        self.pub_viz_estimated = self.create_publisher(Marker, f'{viz_ns}/estimated_pose', 10)
         self.pub_viz_peer = self.create_publisher(Marker, f'{viz_ns}/peer_measurement', 10)
         self.pub_viz_inferred = self.create_publisher(Marker, f'{viz_ns}/inferred_pose', 10)
-        self.pub_viz_arrow = self.create_publisher(Marker, f'{viz_ns}/correction_vector', 10)
+        self.pub_viz_inferred_arrow = self.create_publisher(Marker, f'{viz_ns}/inferred_vector', 10)
+        self.pub_viz_corrected = self.create_publisher(Marker, f'{viz_ns}/corrected_pose', 10)
+        self.pub_viz_corrected_arrow = self.create_publisher(Marker, f'{viz_ns}/corrected_vector', 10)
 
         # Publish collaborative localization results
         coloc_topic = self._get_topic_name('coloc_pose')
@@ -227,35 +295,44 @@ class DecentralizedColocAgent(Node):
             del self.peer_beliefs[peer_id]
             self.get_logger().warning(f'Neighbor {peer_id} timed out and was removed')
 
-        # --- STEP 2: Communication ---
+        # --- STEP 2: Fusion ---
+        # If we have active neighbors, use their beliefs to correct our own position
+        # using the Weighted Consensus / EKF approach.
+        update_count = 0
+        if len(self.peer_beliefs) > 0:
+            consensus_pose, update_count = self.compute_consensus()
+        else:
+            consensus_pose = self.amcl_pose
+
+        if consensus_pose is None:
+            return
+
+        # Limit extreme corrections and blend with AMCL based on self_weight
+        limited_pose = self.limit_correction(self.amcl_pose, consensus_pose)
+        fused_pose = self.blend_with_amcl(self.amcl_pose, limited_pose, update_count)
+
+        # Compute correction distance vs AMCL
+        dx = fused_pose.pose.pose.position.x - self.amcl_pose.pose.pose.position.x
+        dy = fused_pose.pose.pose.position.y - self.amcl_pose.pose.pose.position.y
+        correction_dist = math.hypot(dx, dy)
+        self.last_correction_dist = correction_dist
+
+        # Always publish the fused pose (even if below threshold)
+        self.publish_correction(fused_pose)
+
+        # Update belief so broadcasts stay current
+        self.current_belief = fused_pose
+        if correction_dist > self.correction_threshold:
+            self.correction_count += 1
+
+        # --- STEP 3: Communication ---
         # Broadcast our current belief (position + covariance) to all peers
         self.broadcast_belief()
 
-        # --- STEP 3: Fusion ---
-        # If we have active neighbors, use their beliefs to correct our own position
-        # using the Weighted Consensus / EKF approach.
-        if len(self.peer_beliefs) > 0:
-            consensus_pose = self.compute_consensus()
+        # --- STEP 4: Visualization ---
+        self.publish_consensus_markers(self.amcl_pose, fused_pose, update_count)
 
-            if consensus_pose is not None:
-                # Compute correction distance
-                dx = consensus_pose.pose.pose.position.x - self.current_belief.pose.pose.position.x
-                dy = consensus_pose.pose.pose.position.y - self.current_belief.pose.pose.position.y
-                correction_dist = math.sqrt(dx**2 + dy**2)
-
-                # Always publish the fused pose (even if below threshold)
-                self.publish_correction(consensus_pose)
-
-                # Update belief if fusion succeeded, so broadcasts stay current
-                # correction_threshold only counts significant corrections for stats
-                self.current_belief = consensus_pose
-                if correction_dist > self.correction_threshold:
-                    self.correction_count += 1
-        else:
-            # Even with no neighbors, publish current belief (from AMCL)
-            self.publish_correction(self.current_belief)
-
-        # --- STEP 4: Statistics ---
+        # --- STEP 5: Statistics ---
         # Print stats periodically (every 10 seconds)
         # Use time delta to avoid division-by-zero issues
         if current_time - self.last_stats_time >= 10.0:
@@ -298,31 +375,39 @@ class DecentralizedColocAgent(Node):
         Neighbor poses are treated as constraints via relative observations.
         """
         # --- Step 1: Initialization (Prior) ---
-        # Initialize the state estimate with our current AMCL pose
-        x_prior, y_prior, yaw_prior = self.extract_pose(self.amcl_pose)
+        # Initialize the state estimate with our current belief (fused or AMCL)
+        prior_pose = self.current_belief if self.current_belief is not None else self.amcl_pose
+        if prior_pose is None:
+            return self.amcl_pose, 0
+        x_prior, y_prior, yaw_prior = self.extract_pose(prior_pose)
         state_prior = np.array([x_prior, y_prior, yaw_prior])
 
-        cov_amcl = np.array(self.amcl_pose.pose.covariance).reshape(6, 6)
+        cov_prior = np.array(prior_pose.pose.covariance).reshape(6, 6)
         # Extract 3x3 block (x, y, yaw)
         P_prior = np.array([
-            [cov_amcl[0, 0], cov_amcl[0, 1], cov_amcl[0, 5]],
-            [cov_amcl[1, 0], cov_amcl[1, 1], cov_amcl[1, 5]],
-            [cov_amcl[5, 0], cov_amcl[5, 1], cov_amcl[5, 5]]
+            [cov_prior[0, 0], cov_prior[0, 1], cov_prior[0, 5]],
+            [cov_prior[1, 0], cov_prior[1, 1], cov_prior[1, 5]],
+            [cov_prior[5, 0], cov_prior[5, 1], cov_prior[5, 5]]
         ])
 
         # If no neighbors, return AMCL
         if len(self.peer_beliefs) == 0:
-            return self.amcl_pose
+            return self.amcl_pose, 0
 
         # --- Step 2: Iterative EKF Update ---
         # Iterate through each neighbor to perform an EKF update
         state_est = state_prior.copy()
-        P_est = P_prior.copy()
+        P_est = self.apply_covariance_floor(P_prior.copy(), self.min_covariance)
 
         max_range = self.get_parameter('max_comm_range').value
         maha_thresh = self.get_parameter('mahalanobis_threshold').value
 
         update_count = 0  # successful updates
+        detections = 0
+        range_rejects = 0
+        innovation_rejects = 0
+        maha_rejects = 0
+        candidates = []
 
         for peer_id, belief_data in self.peer_beliefs.items():
             # Step 2a: Get the neighbor's belief (their claimed position)
@@ -337,18 +422,32 @@ class DecentralizedColocAgent(Node):
                 [peer_cov[1, 0], peer_cov[1, 1], peer_cov[1, 5]],
                 [peer_cov[5, 0], peer_cov[5, 1], peer_cov[5, 5]]
             ])
+            cov_j = self.apply_covariance_floor(cov_j, self.min_covariance)
 
             # Step 2b: Measure the neighbor's relative position using our sensors (LIDAR)
             z_rel = self.generate_relative_observation(peer_id)
             if z_rel is None:
                 continue
+            detections += 1
 
             # Gate 1: communication range
-            if np.linalg.norm(z_rel[:2]) > max_range:
+            dist = np.linalg.norm(z_rel[:2])
+            if dist > max_range:
                 self.get_logger().debug(
-                    f'Gate reject {peer_id}: distance {np.linalg.norm(z_rel[:2]):.2f}m > {max_range}m'
+                    f'Gate reject {peer_id}: distance {dist:.2f}m > {max_range}m'
                 )
+                range_rejects += 1
                 continue
+
+            candidates.append((dist, peer_id, belief_data, z_rel, cov_j, theta_j, x_j, y_j))
+
+        # Prefer closer neighbors to reduce confusion with many robots
+        candidates.sort(key=lambda item: item[0])
+        if self.max_peer_updates > 0:
+            candidates = candidates[:self.max_peer_updates]
+        selected_count = len(candidates)
+
+        for _, peer_id, belief_data, z_rel, cov_j, theta_j, x_j, y_j in candidates:
 
             # Step 2c: Predict where the neighbor *should* be relative to us
             # Predicted measurement: h(x_i, x_j) = neighbor in self frame
@@ -382,6 +481,11 @@ class DecentralizedColocAgent(Node):
             # Step 2d: Calculate the Innovation (Measurement - Prediction)
             innovation = z_rel - z_pred
             innovation[2] = self.wrap_angle(innovation[2])  # wrap angle residual
+            if self.max_innovation_dist > 0.0:
+                innov_norm = np.linalg.norm(innovation[:2])
+                if innov_norm > self.max_innovation_dist:
+                    innovation_rejects += 1
+                    continue
 
             # Innovation covariance
             S = H @ P_est @ H.T + R_eff
@@ -394,6 +498,7 @@ class DecentralizedColocAgent(Node):
                     self.get_logger().debug(
                         f'Gate reject {peer_id}: Mahalanobis {maha_dist:.1f} > {maha_thresh}'
                     )
+                    maha_rejects += 1
                     continue
             except np.linalg.LinAlgError:
                 self.get_logger().warning(f'Singular covariance matrix, skipping {peer_id}')
@@ -410,10 +515,19 @@ class DecentralizedColocAgent(Node):
         # Log update info
         if update_count > 0:
             self.get_logger().debug(f'EKF updates: {update_count}/{len(self.peer_beliefs)} neighbors')
+        self.last_consensus_stats = {
+            'peers': len(self.peer_beliefs),
+            'detections': detections,
+            'range_rejects': range_rejects,
+            'innovation_rejects': innovation_rejects,
+            'maha_rejects': maha_rejects,
+            'selected': selected_count,
+            'updates': update_count,
+        }
 
         # Build output message
         consensus_pose = PoseWithCovarianceStamped()
-        consensus_pose.header.frame_id = self.amcl_pose.header.frame_id
+        consensus_pose.header.frame_id = prior_pose.header.frame_id
         consensus_pose.header.stamp = self.get_clock().now().to_msg()
 
         consensus_pose.pose.pose.position.x = state_est[0]
@@ -434,7 +548,7 @@ class DecentralizedColocAgent(Node):
         cov_6x6[5, 5] = P_est[2, 2]          # yaw
         consensus_pose.pose.covariance = list(cov_6x6.flatten())
 
-        return consensus_pose
+        return consensus_pose, update_count
 
     def publish_correction(self, pose):
         """Publish corrected pose."""
@@ -463,6 +577,156 @@ class DecentralizedColocAgent(Node):
     def wrap_angle(self, angle):
         """Normalize angle to [-pi, pi]."""
         return math.atan2(math.sin(angle), math.cos(angle))
+
+    def apply_covariance_floor(self, cov, min_cov):
+        """Clamp covariance diagonal to avoid singular matrices."""
+        if min_cov <= 0.0:
+            return cov
+        cov_out = cov.copy()
+        for i in range(min(cov_out.shape[0], cov_out.shape[1])):
+            if cov_out[i, i] < min_cov:
+                cov_out[i, i] = min_cov
+        return cov_out
+
+    def limit_correction(self, amcl_pose, consensus_pose):
+        """Limit correction magnitude relative to AMCL."""
+        if amcl_pose is None or consensus_pose is None:
+            self.last_correction_clamped = False
+            return consensus_pose
+        if self.max_correction <= 0.0:
+            self.last_correction_clamped = False
+            return consensus_pose
+
+        ax, ay, ayaw = self.extract_pose(amcl_pose)
+        cx, cy, cyaw = self.extract_pose(consensus_pose)
+        dx = cx - ax
+        dy = cy - ay
+        dist = math.hypot(dx, dy)
+        if dist <= self.max_correction:
+            self.last_correction_clamped = False
+            return consensus_pose
+
+        scale = self.max_correction / dist
+        new_x = ax + dx * scale
+        new_y = ay + dy * scale
+        dyaw = self.wrap_angle(cyaw - ayaw)
+        new_yaw = self.wrap_angle(ayaw + dyaw * scale)
+
+        limited = PoseWithCovarianceStamped()
+        limited.header.frame_id = consensus_pose.header.frame_id
+        limited.header.stamp = self.get_clock().now().to_msg()
+        limited.pose.pose.position.x = new_x
+        limited.pose.pose.position.y = new_y
+        limited.pose.pose.position.z = consensus_pose.pose.pose.position.z
+        q = self.yaw_to_quaternion(new_yaw)
+        limited.pose.pose.orientation.x = q[0]
+        limited.pose.pose.orientation.y = q[1]
+        limited.pose.pose.orientation.z = q[2]
+        limited.pose.pose.orientation.w = q[3]
+        limited.pose.covariance = list(consensus_pose.pose.covariance)
+        self.last_correction_clamped = True
+        return limited
+
+    def blend_with_amcl(self, amcl_pose, consensus_pose, update_count):
+        """Blend consensus with AMCL using self_weight."""
+        if amcl_pose is None or consensus_pose is None:
+            return consensus_pose
+        if self.self_weight <= 0.0:
+            self.last_weight_used = 0.0
+            return consensus_pose
+        if self.self_weight >= 1.0:
+            self.last_weight_used = 1.0
+            return amcl_pose
+
+        ax, ay, ayaw = self.extract_pose(amcl_pose)
+        cx, cy, cyaw = self.extract_pose(consensus_pose)
+        weight = self.self_weight
+        if update_count > 1:
+            weight = max(0.2, self.self_weight / float(update_count))
+        self.last_weight_used = weight
+
+        out = PoseWithCovarianceStamped()
+        out.header.frame_id = consensus_pose.header.frame_id
+        out.header.stamp = self.get_clock().now().to_msg()
+        out.pose.pose.position.x = weight * ax + (1.0 - weight) * cx
+        out.pose.pose.position.y = weight * ay + (1.0 - weight) * cy
+        out.pose.pose.position.z = consensus_pose.pose.pose.position.z
+
+        dyaw = self.wrap_angle(cyaw - ayaw)
+        blended_yaw = self.wrap_angle(ayaw + (1.0 - weight) * dyaw)
+        q = self.yaw_to_quaternion(blended_yaw)
+        out.pose.pose.orientation.x = q[0]
+        out.pose.pose.orientation.y = q[1]
+        out.pose.pose.orientation.z = q[2]
+        out.pose.pose.orientation.w = q[3]
+
+        amcl_cov = np.array(amcl_pose.pose.covariance)
+        cons_cov = np.array(consensus_pose.pose.covariance)
+        out.pose.covariance = list((weight * amcl_cov + (1.0 - weight) * cons_cov).flatten())
+        return out
+
+    def publish_consensus_markers(self, amcl_pose, fused_pose, update_count):
+        """Publish markers for the final cooperative correction."""
+        if amcl_pose is None or fused_pose is None:
+            return
+
+        timestamp = self.get_clock().now().to_msg()
+        frame_id = fused_pose.header.frame_id or 'map'
+
+        # Consensus pose marker (cyan)
+        m_pose = Marker()
+        m_pose.header.frame_id = frame_id
+        m_pose.header.stamp = timestamp
+        m_pose.ns = 'corrected_pose'
+        m_pose.id = 0
+        m_pose.type = Marker.SPHERE
+        m_pose.action = Marker.ADD
+        m_pose.pose.position.x = fused_pose.pose.pose.position.x
+        m_pose.pose.position.y = fused_pose.pose.pose.position.y
+        m_pose.pose.position.z = 0.35
+        m_pose.pose.orientation.w = 1.0
+        m_pose.scale.x = 0.08
+        m_pose.scale.y = 0.08
+        m_pose.scale.z = 0.08
+        m_pose.color.a = 0.9
+        m_pose.color.r = 0.0
+        m_pose.color.g = 0.7
+        m_pose.color.b = 1.0
+
+        # Correction vector marker (green if updated, gray otherwise)
+        start = Point()
+        start.x = amcl_pose.pose.pose.position.x
+        start.y = amcl_pose.pose.pose.position.y
+        start.z = 0.1
+        end = Point()
+        end.x = fused_pose.pose.pose.position.x
+        end.y = fused_pose.pose.pose.position.y
+        end.z = 0.1
+
+        m_vec = Marker()
+        m_vec.header.frame_id = frame_id
+        m_vec.header.stamp = timestamp
+        m_vec.ns = 'corrected_vector'
+        m_vec.id = 1
+        m_vec.type = Marker.ARROW
+        m_vec.action = Marker.ADD
+        m_vec.points = [start, end]
+        m_vec.scale.x = 0.015
+        m_vec.scale.y = 0.03
+        m_vec.scale.z = 0.03
+        if update_count > 0:
+            m_vec.color.r = 0.1
+            m_vec.color.g = 0.9
+            m_vec.color.b = 0.1
+            m_vec.color.a = 0.9
+        else:
+            m_vec.color.r = 0.6
+            m_vec.color.g = 0.6
+            m_vec.color.b = 0.6
+            m_vec.color.a = 0.6
+
+        self.pub_viz_corrected.publish(m_pose)
+        self.pub_viz_corrected_arrow.publish(m_vec)
 
     def _get_topic_name(self, topic_base: str, for_peer_id: str = None) -> str:
         """Get a namespaced topic name, handling the special case for tb3_1."""
@@ -493,7 +757,10 @@ class DecentralizedColocAgent(Node):
 
         try:
             # --- Step 1: Get Self Pose (Estimated) ---
-            x_i, y_i, yaw_i = self.extract_pose(self.amcl_pose)
+            self_pose = self.current_belief if self.current_belief is not None else self.amcl_pose
+            if self_pose is None:
+                return None
+            x_i, y_i, yaw_i = self.extract_pose(self_pose)
             
             # --- Step 2: Get Peer Pose (Belief) ---
             belief = self.peer_beliefs[peer_id]
@@ -501,18 +768,17 @@ class DecentralizedColocAgent(Node):
             y_j = belief['position']['y']
             
             # --- Step 3: Ambiguity Check ---
-            # If another robot is very close to where we expect this peer, 
+            # If another robot is very close to where we expect this peer,
             # we might confuse them. Skip detection to be safe.
-            for other_id, other_belief in self.peer_beliefs.items():
-                if other_id == peer_id:
-                    continue
-                ox = other_belief['position']['x']
-                oy = other_belief['position']['y']
-                
-                # Threshold: 3 * Robot Size (Diameter)
-                ambiguity_thresh = (self.ROBOT_RADIUS * 2) * 3.0
-                if (x_j - ox)**2 + (y_j - oy)**2 < ambiguity_thresh**2: 
-                    return None
+            if self.ambiguity_distance > 0.0:
+                ambiguity_thresh_sq = self.ambiguity_distance ** 2
+                for other_id, other_belief in self.peer_beliefs.items():
+                    if other_id == peer_id:
+                        continue
+                    ox = other_belief['position']['x']
+                    oy = other_belief['position']['y']
+                    if (x_j - ox)**2 + (y_j - oy)**2 < ambiguity_thresh_sq:
+                        return None
             # -----------------------------------
 
             # Peer orientation for dtheta (since lidar can't measure it)
@@ -569,29 +835,76 @@ class DecentralizedColocAgent(Node):
             
             # --- Step 6: Association (Find points near expected position) ---
             dist_sq = (x_base - expected_dx)**2 + (y_base - expected_dy)**2
-            search_radius = 0.6 # meters (generous radius to catch the robot)
+            search_radius = self.peer_search_radius
             
             matches = dist_sq < (search_radius**2)
             
-            if np.sum(matches) < 3: # Need at least a few points to confirm detection
+            if np.sum(matches) < self.min_cluster_points: # Need at least a few points to confirm detection
                 return None
                 
-            # --- Step 7: Cluster Shape Check (Robustness) ---
-            # Filter out walls/obstacles. A robot is small/compact.
-            # If the points are too spread out, it's likely a wall.
+            # --- Step 7: Cluster Selection (Size vs Obstacles) ---
             matched_x = x_base[matches]
             matched_y = y_base[matches]
-            std_x = np.std(matched_x)
-            std_y = np.std(matched_y)
-            
-            # TurtleBot3 is ~0.2m. If std > 0.2, spread is likely > 0.6m -> Wall
-            if std_x > 0.2 or std_y > 0.2:
+            matched_x_scan = x_scan[matches]
+            matched_y_scan = y_scan[matches]
+
+            link_dist = self.cluster_link_distance
+            if link_dist <= 0.0:
+                link_dist = max(self.robot_radius * 1.5, 0.08)
+
+            deltas = np.hypot(np.diff(matched_x), np.diff(matched_y))
+            split_indices = np.where(deltas > link_dist)[0] + 1
+            clusters = np.split(np.arange(len(matched_x)), split_indices)
+
+            min_extent = self.cluster_extent_min
+            max_extent = self.cluster_extent_max
+            if min_extent <= 0.0:
+                min_extent = max(0.02, self.robot_radius * 0.5)
+            if max_extent <= 0.0:
+                max_extent = self.robot_radius * 4.0
+
+            best_cluster = None
+            best_key = None
+            for cluster_idx in clusters:
+                if len(cluster_idx) < self.min_cluster_points:
+                    continue
+                cluster_x = matched_x[cluster_idx]
+                cluster_y = matched_y[cluster_idx]
+                if self.cluster_span_max > 0.0:
+                    span = math.hypot(
+                        float(cluster_x[-1] - cluster_x[0]),
+                        float(cluster_y[-1] - cluster_y[0])
+                    )
+                    if span > self.cluster_span_max:
+                        continue
+                extent = math.hypot(
+                    float(cluster_x.max() - cluster_x.min()),
+                    float(cluster_y.max() - cluster_y.min())
+                )
+                if extent < min_extent or extent > max_extent:
+                    continue
+                centroid_x = float(np.mean(cluster_x))
+                centroid_y = float(np.mean(cluster_y))
+                dist_to_expected = math.hypot(centroid_x - expected_dx, centroid_y - expected_dy)
+                key = (dist_to_expected, extent)
+                if best_key is None or key < best_key:
+                    best_key = key
+                    best_cluster = cluster_idx
+
+            if best_cluster is None:
                 return None
             # ---------------------------------------
 
             # --- Step 8: Measurement (Calculate Centroid) ---
-            measured_dx = np.mean(matched_x)
-            measured_dy = np.mean(matched_y)
+            cluster_x = matched_x[best_cluster]
+            cluster_y = matched_y[best_cluster]
+            cluster_x_scan = matched_x_scan[best_cluster]
+            cluster_y_scan = matched_y_scan[best_cluster]
+
+            measured_dx = np.mean(cluster_x)
+            measured_dy = np.mean(cluster_y)
+            measured_dx_scan = np.mean(cluster_x_scan)
+            measured_dy_scan = np.mean(cluster_y_scan)
             
             # Calculate dtheta (from beliefs, as LIDAR can't see orientation)
             measured_dtheta = self.wrap_angle(yaw_j - yaw_i)
@@ -601,7 +914,22 @@ class DecentralizedColocAgent(Node):
             # The EKF expects a noisy measurement.
             
             # VISUALIZATION: Publish markers to see what's happening in Rviz
-            self.publish_debug_markers(peer_id, x_i, y_i, yaw_i, x_j, y_j, measured_dx, measured_dy)
+            self.log_active_neighbor(peer_id, measured_dx, measured_dy)
+            self.publish_debug_markers(
+                peer_id,
+                x_i,
+                y_i,
+                yaw_i,
+                x_j,
+                y_j,
+                measured_dx,
+                measured_dy,
+                scan_frame,
+                measured_dx_scan,
+                measured_dy_scan,
+                cluster_x_scan,
+                cluster_y_scan,
+            )
             
             return np.array([measured_dx, measured_dy, measured_dtheta])
 
@@ -609,32 +937,60 @@ class DecentralizedColocAgent(Node):
             # Catch TF-specific errors
             self.get_logger().warn(f'LIDAR detection failed for {peer_id}: {e}')
             return None
+
+    def log_active_neighbor(self, peer_id, meas_dx, meas_dy):
+        """Log detections to the terminal with throttling."""
+        now = self.get_clock().now().nanoseconds / 1e9
+        last_time = self.last_peer_detection_log_time.get(peer_id, 0.0)
+        if self.peer_detection_log_period > 0.0 and now - last_time < self.peer_detection_log_period:
+            return
+        dist = math.hypot(meas_dx, meas_dy)
+        self.get_logger().info(
+            f'Active neighbor found in scan: {peer_id} at (dx={meas_dx:.2f}, dy={meas_dy:.2f}, r={dist:.2f}m)'
+        )
+        self.last_peer_detection_log_time[peer_id] = now
             
-    def publish_debug_markers(self, peer_id, self_x, self_y, self_yaw, peer_x, peer_y, meas_dx, meas_dy):
+    def publish_debug_markers(
+        self,
+        peer_id,
+        self_x,
+        self_y,
+        self_yaw,
+        peer_x,
+        peer_y,
+        meas_dx,
+        meas_dy,
+        scan_frame,
+        meas_dx_scan,
+        meas_dy_scan,
+        matched_x_scan,
+        matched_y_scan,
+    ):
         """
         Publish visualization markers for debug on separate topics.
         
-        Red: Self AMCL Pose (Measured by Odom/IMU) - Map Frame
+        Red: Estimated pose from AMCL - Map Frame
         Green: Measured Peer Position (LIDAR) - Base Frame (Relative)
         Blue: Inferred Self Pose (Calculated from Peer + LIDAR) - Map Frame
-        Yellow: Correction Vector
+        Yellow: Inferred correction vector (AMCL -> inferred)
         """
         timestamp = self.get_clock().now().to_msg()
         frame_id = "map"
         base_frame = self._get_base_frame(self.robot_id)
         
+        sphere_scale = 0.08
         # 1. Red Sphere: Self AMCL Pose (Current Estimate)
         m1 = Marker()
         m1.header.frame_id = frame_id
         m1.header.stamp = timestamp
-        m1.ns = f"self_amcl_{peer_id}"
+        m1.ns = f"estimated_amcl_{peer_id}"
         m1.id = 0
         m1.type = Marker.SPHERE
         m1.action = Marker.ADD
         m1.pose.position.x = self_x
         m1.pose.position.y = self_y
         m1.pose.position.z = 0.3
-        m1.scale.x = 0.2; m1.scale.y = 0.2; m1.scale.z = 0.2
+        m1.scale.x = sphere_scale; m1.scale.y = sphere_scale; m1.scale.z = sphere_scale
         m1.color.a = 1.0; m1.color.r = 1.0; m1.color.g = 0.0; m1.color.b = 0.0 # Red
         
         # 2. Green Sphere: Measured Peer Position (LIDAR)
@@ -648,8 +1004,41 @@ class DecentralizedColocAgent(Node):
         m2.pose.position.x = meas_dx
         m2.pose.position.y = meas_dy
         m2.pose.position.z = 0.3
-        m2.scale.x = 0.2; m2.scale.y = 0.2; m2.scale.z = 0.2
+        m2.scale.x = sphere_scale; m2.scale.y = sphere_scale; m2.scale.z = sphere_scale
         m2.color.a = 1.0; m2.color.r = 0.0; m2.color.g = 1.0; m2.color.b = 0.0 # Green
+
+        # 2b. Green Points: Matched LIDAR points (scan frame) for visual alignment with LaserScan
+        m2_points = Marker()
+        m2_points.header.frame_id = scan_frame
+        m2_points.header.stamp = timestamp
+        m2_points.ns = f"measured_peer_points_{peer_id}"
+        m2_points.id = 5
+        m2_points.type = Marker.POINTS
+        m2_points.action = Marker.ADD
+        m2_points.scale.x = 0.02
+        m2_points.scale.y = 0.02
+        m2_points.color.a = 0.8
+        m2_points.color.r = 0.0
+        m2_points.color.g = 1.0
+        m2_points.color.b = 0.0
+        m2_points.points = [
+            Point(x=float(px), y=float(py), z=0.0)
+            for px, py in zip(matched_x_scan, matched_y_scan)
+        ]
+
+        # 2c. Green Sphere: Measured centroid in scan frame (laser point cloud)
+        m2_scan = Marker()
+        m2_scan.header.frame_id = scan_frame
+        m2_scan.header.stamp = timestamp
+        m2_scan.ns = f"measured_peer_scan_{peer_id}"
+        m2_scan.id = 6
+        m2_scan.type = Marker.SPHERE
+        m2_scan.action = Marker.ADD
+        m2_scan.pose.position.x = float(meas_dx_scan)
+        m2_scan.pose.position.y = float(meas_dy_scan)
+        m2_scan.pose.position.z = 0.0
+        m2_scan.scale.x = 0.05; m2_scan.scale.y = 0.05; m2_scan.scale.z = 0.05
+        m2_scan.color.a = 0.9; m2_scan.color.r = 0.0; m2_scan.color.g = 1.0; m2_scan.color.b = 0.0
         
         # 3. Blue Sphere: Inferred Self Pose
         # Calculation: Self = Peer_Global - Rotate(Meas_Local)
@@ -666,26 +1055,26 @@ class DecentralizedColocAgent(Node):
         m3 = Marker()
         m3.header.frame_id = frame_id
         m3.header.stamp = timestamp
-        m3.ns = f"self_inferred_{peer_id}"
+        m3.ns = f"inferred_self_{peer_id}"
         m3.id = 2
         m3.type = Marker.SPHERE
         m3.action = Marker.ADD
         m3.pose.position.x = inferred_x
         m3.pose.position.y = inferred_y
         m3.pose.position.z = 0.3
-        m3.scale.x = 0.2; m3.scale.y = 0.2; m3.scale.z = 0.2
+        m3.scale.x = sphere_scale; m3.scale.y = sphere_scale; m3.scale.z = sphere_scale
         m3.color.a = 1.0; m3.color.r = 0.0; m3.color.g = 0.0; m3.color.b = 1.0 # Blue
         
         # 4. Yellow Arrow: Correction Vector (Red -> Blue)
         m4 = Marker()
         m4.header.frame_id = frame_id
         m4.header.stamp = timestamp
-        m4.ns = f"correction_line_{peer_id}"
+        m4.ns = f"inferred_vector_{peer_id}"
         m4.id = 3
         m4.type = Marker.ARROW
         m4.action = Marker.ADD
         m4.points = [m1.pose.position, m3.pose.position] # From Red to Blue
-        m4.scale.x = 0.05; m4.scale.y = 0.1; m4.scale.z = 0.1
+        m4.scale.x = 0.015; m4.scale.y = 0.03; m4.scale.z = 0.03
         m4.color.a = 0.8; m4.color.r = 1.0; m4.color.g = 1.0; m4.color.b = 0.0 # Yellow
         
         # 5. Magenta Sphere: Ground Truth Position of Peer Robot (from TF)
@@ -709,17 +1098,19 @@ class DecentralizedColocAgent(Node):
                 m5.pose.orientation.y = tf_peer.transform.rotation.y
                 m5.pose.orientation.z = tf_peer.transform.rotation.z
                 m5.pose.orientation.w = tf_peer.transform.rotation.w
-                m5.scale.x = 0.2; m5.scale.y = 0.2; m5.scale.z = 0.2
+                m5.scale.x = sphere_scale; m5.scale.y = sphere_scale; m5.scale.z = sphere_scale
                 m5.color.a = 1.0; m5.color.r = 1.0; m5.color.g = 0.0; m5.color.b = 1.0 # Magenta
             else:
                 return  # Can't get ground truth, skip visualization
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
             return  # TF lookup failed, skip visualization
         
-        self.pub_viz_self.publish(m1)
+        self.pub_viz_estimated.publish(m1)
         self.pub_viz_peer.publish(m2)
+        self.pub_viz_peer.publish(m2_points)
+        self.pub_viz_peer.publish(m2_scan)
         self.pub_viz_inferred.publish(m3)
-        self.pub_viz_arrow.publish(m4)
+        self.pub_viz_inferred_arrow.publish(m4)
         self.pub_viz_peer.publish(m5)  # Reusing peer publisher for ground truth
 
     def print_statistics(self):
@@ -736,7 +1127,47 @@ class DecentralizedColocAgent(Node):
         if self.current_belief is not None:
             x, y, yaw = self.extract_pose(self.current_belief)
             self.get_logger().info(f'  Current belief: ({x:.3f}, {y:.3f}, {math.degrees(yaw):.1f}°)')
+        if self.last_consensus_stats:
+            stats = self.last_consensus_stats
+            self.get_logger().info(
+                '  Peer obs: peers={peers} detections={detections} selected={selected} '
+                'updates={updates} range_rejects={range_rejects} innovation_rejects={innovation_rejects} '
+                'maha_rejects={maha_rejects}'.format(**stats)
+            )
+        if self.last_correction_dist is not None:
+            weight_str = f'{self.last_weight_used:.2f}' if self.last_weight_used is not None else 'n/a'
+            self.get_logger().info(
+                f'  Last correction: dist={self.last_correction_dist:.3f}m '
+                f'clamped={self.last_correction_clamped} weight={weight_str}'
+            )
+        if self.gt_pose is not None and self.amcl_pose is not None and self.current_belief is not None:
+            gt_x, gt_y, _ = self.extract_pose_any(self.gt_pose)
+            amcl_x, amcl_y, _ = self.extract_pose(self.amcl_pose)
+            corr_x, corr_y, _ = self.extract_pose(self.current_belief)
+            amcl_err = math.hypot(amcl_x - gt_x, amcl_y - gt_y)
+            corr_err = math.hypot(corr_x - gt_x, corr_y - gt_y)
+            self.get_logger().info(f'  GT error: amcl={amcl_err:.3f}m corrected={corr_err:.3f}m')
         self.get_logger().info('=' * 60)
+
+    def gt_callback(self, msg):
+        """Receive ground truth pose for debug."""
+        self.gt_pose = msg
+
+    def extract_pose_any(self, pose_msg):
+        """Extract x, y, yaw from PoseStamped or PoseWithCovarianceStamped."""
+        if hasattr(pose_msg, 'pose') and hasattr(pose_msg.pose, 'pose'):
+            pose = pose_msg.pose.pose
+        else:
+            pose = pose_msg.pose
+        x = pose.position.x
+        y = pose.position.y
+        yaw = self.quaternion_to_yaw({
+            'x': pose.orientation.x,
+            'y': pose.orientation.y,
+            'z': pose.orientation.z,
+            'w': pose.orientation.w,
+        })
+        return x, y, yaw
 
 
 def main(args=None):

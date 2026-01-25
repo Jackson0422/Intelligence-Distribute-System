@@ -141,8 +141,8 @@ Visualization Manager:
         Value: true
       Shape: Axes
       Value: true
-    - Class: rviz_default_plugins/Pose
-      Enabled: true
+    - Class: rviz_default_plugins/PoseWithCovariance
+      Enabled: false
       Name: tb3_1_coloc
       Topic:
         Depth: 1
@@ -150,8 +150,23 @@ Visualization Manager:
         History Policy: KeepLast
         Reliability Policy: Reliable
         Value: /tb3_1/coloc_pose
+      Alpha: 1
       Axes Length: 0.35
       Axes Radius: 0.025
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 204; 153
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 255; 128; 0
+          Scale: 1
+          Value: true
+        Value: true
       Shape: Axes
       Value: true
     - Class: rviz_default_plugins/Pose
@@ -195,8 +210,8 @@ Visualization Manager:
         Value: true
       Shape: Axes
       Value: true
-    - Class: rviz_default_plugins/Pose
-      Enabled: true
+    - Class: rviz_default_plugins/PoseWithCovariance
+      Enabled: false
       Name: tb3_2_coloc
       Topic:
         Depth: 1
@@ -204,8 +219,23 @@ Visualization Manager:
         History Policy: KeepLast
         Reliability Policy: Reliable
         Value: /tb3_2/coloc_pose
+      Alpha: 1
       Axes Length: 0.35
       Axes Radius: 0.025
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 204; 153
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 255; 128; 0
+          Scale: 1
+          Value: true
+        Value: true
       Shape: Axes
       Value: true
     - Class: rviz_default_plugins/Pose
@@ -249,8 +279,8 @@ Visualization Manager:
         Value: true
       Shape: Axes
       Value: true
-    - Class: rviz_default_plugins/Pose
-      Enabled: true
+    - Class: rviz_default_plugins/PoseWithCovariance
+      Enabled: false
       Name: tb3_3_coloc
       Topic:
         Depth: 1
@@ -258,8 +288,23 @@ Visualization Manager:
         History Policy: KeepLast
         Reliability Policy: Reliable
         Value: /tb3_3/coloc_pose
+      Alpha: 1
       Axes Length: 0.35
       Axes Radius: 0.025
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 204; 153
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 255; 128; 0
+          Scale: 1
+          Value: true
+        Value: true
       Shape: Axes
       Value: true
     - Class: rviz_default_plugins/Pose
@@ -303,8 +348,8 @@ Visualization Manager:
         Value: true
       Shape: Axes
       Value: true
-    - Class: rviz_default_plugins/Pose
-      Enabled: true
+    - Class: rviz_default_plugins/PoseWithCovariance
+      Enabled: false
       Name: tb3_4_coloc
       Topic:
         Depth: 1
@@ -312,12 +357,27 @@ Visualization Manager:
         History Policy: KeepLast
         Reliability Policy: Reliable
         Value: /tb3_4/coloc_pose
+      Alpha: 1
       Axes Length: 0.35
       Axes Radius: 0.025
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 204; 153
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 255; 128; 0
+          Scale: 1
+          Value: true
+        Value: true
       Shape: Axes
       Value: true
     - Class: rviz_default_plugins/MarkerArray
-      Enabled: true
+      Enabled: false
       Name: LocalizationMarkers
       Namespaces:
         tb3_1: true
@@ -346,6 +406,366 @@ Visualization Manager:
         History Policy: KeepLast
         Reliability Policy: Reliable
         Value: /localization_markers
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_1_estimated_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_1/viz/estimated_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_1_inferred_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_1/viz/inferred_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_1_inferred_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_1/viz/inferred_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_1_corrected_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_1/viz/corrected_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_1_corrected_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_1/viz/corrected_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_1_peer_measurement
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_1/viz/peer_measurement
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_2_estimated_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_2/viz/estimated_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_2_inferred_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_2/viz/inferred_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_2_inferred_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_2/viz/inferred_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_2_corrected_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_2/viz/corrected_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_2_corrected_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_2/viz/corrected_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_2_peer_measurement
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_2/viz/peer_measurement
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_3_estimated_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_3/viz/estimated_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_3_inferred_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_3/viz/inferred_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_3_inferred_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_3/viz/inferred_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_3_corrected_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_3/viz/corrected_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_3_corrected_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_3/viz/corrected_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_3_peer_measurement
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_3/viz/peer_measurement
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_4_estimated_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_4/viz/estimated_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_4_inferred_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_4/viz/inferred_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_4_inferred_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_4/viz/inferred_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_4_corrected_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_4/viz/corrected_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_4_corrected_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_4/viz/corrected_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_4_peer_measurement
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_4/viz/peer_measurement
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_5_estimated_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_5/viz/estimated_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_5_inferred_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_5/viz/inferred_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_5_inferred_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_5/viz/inferred_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_5_corrected_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_5/viz/corrected_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_5_corrected_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_5/viz/corrected_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_5_peer_measurement
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_5/viz/peer_measurement
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_6_estimated_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_6/viz/estimated_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_6_inferred_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_6/viz/inferred_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_6_inferred_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_6/viz/inferred_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_6_corrected_pose
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_6/viz/corrected_pose
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_6_corrected_vector
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_6/viz/corrected_vector
+      Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: tb3_6_peer_measurement
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: KeepLast
+        Reliability Policy: Reliable
+        Value: /tb3_6/viz/peer_measurement
       Value: true
     - Class: rviz_default_plugins/LaserScan
       Enabled: true

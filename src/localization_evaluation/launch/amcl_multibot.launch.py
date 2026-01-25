@@ -3,6 +3,7 @@ import os
 import copy
 import random
 import time
+import math
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -62,7 +63,7 @@ def generate_launch_description():
         default=os.path.join(pkg_localization_eval, 'param', 'nav2_params_tb3_basic.yaml')
     )
     randomize_initial_pose = LaunchConfiguration('randomize_initial_pose', default='true')
-    spawn_radius = LaunchConfiguration('spawn_radius', default='2.0')
+    spawn_radius = LaunchConfiguration('spawn_radius', default='1.0')
     random_seed = LaunchConfiguration('random_seed', default='auto')
     # Allow up to 20 robots without KeyErrors on overrides; extend if you need more.
     pose_overrides = {
@@ -111,6 +112,7 @@ def generate_launch_description():
         rng = random.Random(seed)
         spread = float(spawn_radius.perform(context))
         randomize_pose = randomize_initial_pose.perform(context).lower() == 'true'
+        pose_spread = max(0.05, spread)
 
         for robot_idx in range(1, robot_count + 1):
             robot_name = f'tb3_{robot_idx}'
@@ -131,65 +133,88 @@ def generate_launch_description():
                 )
 
                 print(f"[amcl_multibot] {robot_name}: overrides={overrides}, randomize={randomize_pose}")
-                
-                initial_pose = None
-                if overrides[0] != '' and overrides[1] != '' and overrides[2] != '':
-                    print(f"[amcl_multibot] {robot_name}: Using OVERRIDE pose x={overrides[0]}, y={overrides[1]}")
-                    initial_pose = {
-                        'x': float(overrides[0]),
-                        'y': float(overrides[1]),
-                        'z': 0.0,
-                        'yaw': float(overrides[2]),
-                    }
-                else:
-                    initial_pose = _load_robot_initial_pose(robot_name, pkg_localization_eval)
-                    if randomize_pose:
-                        # Set initial pose FARTHER from true position to demonstrate convergence
-                        wrong_x = rng.uniform(-2.5, 2.5)  # Up to 2.5m error
-                        wrong_y = rng.uniform(-2.5, 2.5)
-                        wrong_yaw = rng.uniform(-3.14, 3.14)  # Full rotation uncertainty
-                        initial_pose = {
-                            'x': wrong_x,
-                            'y': wrong_y,
+
+                override_pose = None
+                override_complete = False
+                if overrides[0] != '' and overrides[1] != '':
+                    try:
+                        override_pose = {
+                            'x': float(overrides[0]),
+                            'y': float(overrides[1]),
                             'z': 0.0,
-                            'yaw': wrong_yaw,
+                            'yaw': float(overrides[2]) if overrides[2] != '' else 0.0,
                         }
-                        print(f"[amcl_multibot] {robot_name}: FAR WRONG pose x={wrong_x:.2f}, y={wrong_y:.2f}, yaw={wrong_yaw:.2f}")
-                    elif not initial_pose:
-                        initial_pose = base_params.get('initial_pose', {})
-                
-                # When randomizing, use LARGE covariance for wide particle spread
+                        override_complete = overrides[2] != ''
+                    except ValueError:
+                        override_pose = None
+                        override_complete = False
+
+                initial_pose = _load_robot_initial_pose(robot_name, pkg_localization_eval)
+                if not initial_pose:
+                    initial_pose = base_params.get('initial_pose', {})
+
                 if randomize_pose:
-                    # Large covariance so particles explore widely before converging
+                    base_pose = override_pose or initial_pose or {}
+                    base_x = float(base_pose.get('x', 0.0))
+                    base_y = float(base_pose.get('y', 0.0))
+                    base_yaw = float(base_pose.get('yaw', 0.0))
+                    offset_r = pose_spread * math.sqrt(rng.random())
+                    offset_theta = rng.uniform(-math.pi, math.pi)
+                    wrong_x = base_x + offset_r * math.cos(offset_theta)
+                    wrong_y = base_y + offset_r * math.sin(offset_theta)
+                    wrong_yaw = base_yaw + rng.uniform(-3.14, 3.14)  # Full rotation uncertainty
+                    initial_pose = {
+                        'x': wrong_x,
+                        'y': wrong_y,
+                        'z': 0.0,
+                        'yaw': wrong_yaw,
+                    }
+                    if override_pose:
+                        print(
+                            f"[amcl_multibot] {robot_name}: RANDOM near spawn r<={pose_spread:.2f} "
+                            f"x={base_x:.2f}, y={base_y:.2f} -> x={wrong_x:.2f}, y={wrong_y:.2f}, yaw={wrong_yaw:.2f}"
+                        )
+                    else:
+                        print(f"[amcl_multibot] {robot_name}: RANDOM pose x={wrong_x:.2f}, y={wrong_y:.2f}, yaw={wrong_yaw:.2f}")
+                elif override_complete:
+                    print(f"[amcl_multibot] {robot_name}: Using OVERRIDE pose x={overrides[0]}, y={overrides[1]}")
+                    initial_pose = override_pose
+                
+                # When randomizing, use wider covariance and recovery to cover bad initial guesses
+                if randomize_pose:
+                    # Wide covariance so particles explore enough before converging
                     amcl_params['set_initial_pose'] = True
                     amcl_params['always_reset_initial_pose'] = False
-                    # LARGE covariance - particles spread over ~10m diameter initially
-                    amcl_params['initial_cov_xx'] = 9.0     # 3m std dev
-                    amcl_params['initial_cov_yy'] = 9.0     # 3m std dev
+                    # Covariance aligned with the randomization radius
+                    amcl_params['initial_cov_xx'] = pose_spread ** 2
+                    amcl_params['initial_cov_yy'] = pose_spread ** 2
                     amcl_params['initial_cov_aa'] = 3.14    # ~180 deg std dev
-                    # Adaptive particle count with minimum 500, maximum 3000
-                    amcl_params['max_particles'] = 3000     # Maximum particles for wide search
-                    amcl_params['min_particles'] = 500      # Minimum particles to maintain
-                    # Force updates on every scan
-                    amcl_params['update_min_d'] = 0.0
-                    amcl_params['update_min_a'] = 0.0
+                    # Keep a healthy particle count to avoid particle starvation
+                    amcl_params['max_particles'] = 3500     # Maximum particles for wide search
+                    amcl_params['min_particles'] = 800      # Minimum particles to maintain
+                    # Allow frequent updates while jittering
+                    amcl_params['update_min_d'] = 0.05
+                    amcl_params['update_min_a'] = 0.05
                     amcl_params['resample_interval'] = 1    # Resample every update for faster convergence
-                    # KLD sampling - set pf_err very high to keep particle count fixed
-                    amcl_params['pf_err'] = 0.99            # Very loose - effectively disables KLD collapse
+                    # KLD sampling bounds for adaptive particle counts
+                    amcl_params['pf_err'] = 0.05
                     amcl_params['pf_z'] = 0.99
-                    # Aggressive sensor model for fast convergence with limited particles
-                    amcl_params['z_hit'] = 0.98             # Very high weight on accurate measurements
-                    amcl_params['z_rand'] = 0.02            # Low random noise
-                    amcl_params['sigma_hit'] = 0.05         # Tighter sensor noise model
-                    amcl_params['laser_likelihood_max_dist'] = 3.0  # Wider search range
-                    # Aggressive recovery to continuously add random particles
-                    amcl_params['recovery_alpha_slow'] = 0.005      # Add random particles more aggressively
-                    amcl_params['recovery_alpha_fast'] = 0.15       # Fast recovery from wrong estimates
+                    # Balanced sensor model for stability and convergence
+                    amcl_params['z_hit'] = 0.7
+                    amcl_params['z_rand'] = 0.2
+                    amcl_params['z_short'] = 0.05
+                    amcl_params['z_max'] = 0.05
+                    amcl_params['sigma_hit'] = 0.2
+                    amcl_params['laser_likelihood_max_dist'] = 2.5
+                    # Recovery to inject random particles when estimates diverge
+                    amcl_params['recovery_alpha_slow'] = 0.001
+                    amcl_params['recovery_alpha_fast'] = 0.1
                     # TF timing tolerance for simulation
-                    amcl_params['transform_tolerance'] = 2.0        # Lenient timing for sim time synchronization
-                    print(f"[amcl_multibot] {robot_name}: Adaptive particles min=500, max=3000 - wide search with KLD sampling")
+                    amcl_params['transform_tolerance'] = 1.0
+                    print(f"[amcl_multibot] {robot_name}: Adaptive particles min=800, max=3500 with balanced sensor model")
                     
-                # Set initial_pose in params
+                # Set initial_pose in params when provided
+                if initial_pose:
                     amcl_params['initial_pose'] = initial_pose
                 
                 params_source = amcl_params
@@ -277,8 +302,8 @@ def generate_launch_description():
     ))
     ld.add_action(DeclareLaunchArgument(
         'spawn_radius',
-        default_value='2.0',
-        description='Half-width of the square used to randomize initial pose (meters)'
+        default_value='1.0',
+        description='Max AMCL randomization radius from spawn pose (meters)'
     ))
     ld.add_action(DeclareLaunchArgument(
         'random_seed',

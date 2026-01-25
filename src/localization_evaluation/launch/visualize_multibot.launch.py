@@ -33,6 +33,8 @@ def generate_launch_description():
     use_shared_params = LaunchConfiguration('use_shared_params')
     shared_params_file = LaunchConfiguration('shared_params_file')
     randomize_initial_pose = LaunchConfiguration('randomize_initial_pose')
+    randomize_spawn = LaunchConfiguration('randomize_spawn')
+    gt_spawn_radius = LaunchConfiguration('gt_spawn_radius')
     spawn_radius = LaunchConfiguration('spawn_radius')
     _ = LaunchConfiguration('random_seed')
     rviz_config = LaunchConfiguration('rviz_config')
@@ -43,6 +45,7 @@ def generate_launch_description():
     def resolve_map_and_seed(context, *args, **kwargs):
         # Get the actual value of randomize_initial_pose from launch configuration
         randomize_amcl_pose = randomize_initial_pose.perform(context).lower() == 'true'
+        randomize_spawn_flag = randomize_spawn.perform(context).lower() == 'true'
         
         # Resolve map aliases to full paths
         map_arg = map_yaml_file.perform(context)
@@ -82,11 +85,12 @@ def generate_launch_description():
         if str(seed_val).lower() == 'auto':
             seed_val = str(int(time.time() * 1000) % 1000000000)
         rng = random.Random(int(seed_val))
-        radius = float(LaunchConfiguration('spawn_radius').perform(context))
+        gt_radius = float(LaunchConfiguration('gt_spawn_radius').perform(context))
         sample_free = LaunchConfiguration('sample_free_space').perform(context).lower() == 'true'
         max_robots = int(LaunchConfiguration('num_robots').perform(context))
-        max_radius = 2.15  # hard cap on distance to keep spawns near map center
-        max_radius_sq = max_radius * max_radius
+        max_radius = 2.2  # hard cap on distance to keep spawns near map center
+        effective_radius = min(gt_radius, max_radius)
+        effective_radius_sq = effective_radius * effective_radius
         obstacle_clearance = 0.2  # meters away from obstacles
         min_robot_spacing = 0.4  # meters between robot centers
         min_robot_spacing_sq = min_robot_spacing * min_robot_spacing
@@ -107,7 +111,7 @@ def generate_launch_description():
             img = np.frombuffer(data, dtype=np.uint8).reshape((height, width))
             return img, maxval, width, height
 
-        if sample_free:
+        if randomize_spawn_flag and sample_free:
             try:
                 cfg = yaml.safe_load(open(map_resolved, 'r'))
                 res = float(cfg.get('resolution', 0.05))
@@ -175,14 +179,14 @@ def generate_launch_description():
                 for r, c in free_indices:
                     x = origin[0] + (c + 0.5) * res
                     y = origin[1] + (height - r - 0.5) * res
-                    if x * x + y * y <= max_radius_sq:
+                    if x * x + y * y <= effective_radius_sq:
                         filtered_positions.append((x, y))
 
-                # Fallback to all free cells if the radius filter removed everything
-                usable_positions = filtered_positions or [
-                    (origin[0] + (c + 0.5) * res, origin[1] + (height - r - 0.5) * res)
-                    for r, c in free_indices
-                ]
+                if not filtered_positions:
+                    raise RuntimeError(
+                        f'No free cells inside gt_spawn_radius={effective_radius:.2f}m'
+                    )
+                usable_positions = filtered_positions
 
                 chosen_positions = []
                 for _ in range(max_robots):
@@ -199,13 +203,13 @@ def generate_launch_description():
                         poses.append((0.0, 0.0, rng.uniform(-math.pi, math.pi)))
             except Exception as e:
                 print(f'[visualize_multibot] Free-space sampling failed: {e}, falling back to box sampling')
-                limited_radius = min(radius, max_radius)
+                limited_radius = effective_radius
                 chosen_positions = []
                 for _ in range(max_robots):
                     for _ in range(50):
                         x = rng.uniform(-limited_radius, limited_radius)
                         y = rng.uniform(-limited_radius, limited_radius)
-                        if x * x + y * y <= max_radius_sq and all(
+                        if x * x + y * y <= effective_radius_sq and all(
                             (x - px) ** 2 + (y - py) ** 2 >= min_robot_spacing_sq for px, py in chosen_positions
                         ):
                             chosen_positions.append((x, y))
@@ -213,14 +217,14 @@ def generate_launch_description():
                     else:
                         x, y = 0.0, 0.0
                     poses.append((x, y, rng.uniform(-math.pi, math.pi)))
-        else:
-            limited_radius = min(radius, max_radius)
+        elif randomize_spawn_flag:
+            limited_radius = effective_radius
             chosen_positions = []
             for _ in range(max_robots):
                 for _ in range(50):
                     x = rng.uniform(-limited_radius, limited_radius)
                     y = rng.uniform(-limited_radius, limited_radius)
-                    if x * x + y * y <= max_radius_sq and all(
+                    if x * x + y * y <= effective_radius_sq and all(
                         (x - px) ** 2 + (y - py) ** 2 >= min_robot_spacing_sq for px, py in chosen_positions
                     ):
                         chosen_positions.append((x, y))
@@ -228,6 +232,30 @@ def generate_launch_description():
                 else:
                     x, y = 0.0, 0.0
                 poses.append((x, y, rng.uniform(-math.pi, math.pi)))
+        else:
+            # Use explicit overrides if provided, otherwise place robots on a fixed circle.
+            if max_robots > 1:
+                min_circle_radius = min_robot_spacing / (2.0 * math.sin(math.pi / max_robots))
+            else:
+                min_circle_radius = 0.0
+            circle_radius = min(max_radius, max(gt_radius, min_circle_radius))
+            for idx in range(1, max_robots + 1):
+                x_override = LaunchConfiguration(f'x_pose_{idx}').perform(context)
+                y_override = LaunchConfiguration(f'y_pose_{idx}').perform(context)
+                yaw_override = LaunchConfiguration(f'yaw_pose_{idx}').perform(context)
+                if x_override != '' and y_override != '':
+                    try:
+                        x = float(x_override)
+                        y = float(y_override)
+                        yaw = float(yaw_override) if yaw_override != '' else 0.0
+                    except ValueError:
+                        x, y, yaw = 0.0, 0.0, 0.0
+                else:
+                    angle = 0.0 if max_robots == 1 else (2.0 * math.pi * (idx - 1) / max_robots)
+                    x = circle_radius * math.cos(angle)
+                    y = circle_radius * math.sin(angle)
+                    yaw = 0.0
+                poses.append((x, y, yaw))
         actions = [
             SetLaunchConfiguration('resolved_seed', seed_val),
             SetLaunchConfiguration('resolved_map', map_resolved),
@@ -250,7 +278,7 @@ def generate_launch_description():
             'use_sim_time': use_sim_time,
             'num_robots': num_robots,
             'randomize_spawn': LaunchConfiguration('randomize_spawn'),
-            'spawn_radius': LaunchConfiguration('spawn_radius'),
+            'gt_spawn_radius': LaunchConfiguration('gt_spawn_radius'),
             'random_seed': resolved_seed,
             'world': LaunchConfiguration('resolved_world'),
             **{f'x_pose_{i}': LaunchConfiguration(f'x_pose_{i}') for i in range(1, 21)},
@@ -260,8 +288,7 @@ def generate_launch_description():
     )
 
     def build_amcl_launch(context, *args, **kwargs):
-        # When randomize_initial_pose is true, don't pass pose overrides to AMCL
-        # so it can generate its own wrong initial poses
+        # When randomize_initial_pose is true, still pass spawn poses so AMCL can randomize around them.
         randomize_amcl = LaunchConfiguration('randomize_amcl_internal').perform(context).lower() == 'true'
         
         # Build base arguments that are always passed
@@ -278,21 +305,14 @@ def generate_launch_description():
         }
         
         if randomize_amcl:
-            # Pass EXPLICIT EMPTY STRINGS to ensure pose overrides are ignored
-            print(f"[visualize_multibot] AMCL randomization ENABLED - passing empty pose overrides")
-            base_args.update({
-                **{f'x_pose_{i}': '' for i in range(1, 21)},
-                **{f'y_pose_{i}': '' for i in range(1, 21)},
-                **{f'yaw_pose_{i}': '' for i in range(1, 21)},
-            })
+            print(f"[visualize_multibot] AMCL randomization ENABLED - using spawn poses as base")
         else:
-            # Pass the actual spawn poses to AMCL for exact initialization
-            print(f"[visualize_multibot] AMCL randomization DISABLED - passing actual spawn poses")
-            base_args.update({
-                **{f'x_pose_{i}': LaunchConfiguration(f'x_pose_{i}') for i in range(1, 21)},
-                **{f'y_pose_{i}': LaunchConfiguration(f'y_pose_{i}') for i in range(1, 21)},
-                **{f'yaw_pose_{i}': LaunchConfiguration(f'yaw_pose_{i}') for i in range(1, 21)},
-            })
+            print(f"[visualize_multibot] AMCL randomization DISABLED - using spawn poses directly")
+        base_args.update({
+            **{f'x_pose_{i}': LaunchConfiguration(f'x_pose_{i}') for i in range(1, 21)},
+            **{f'y_pose_{i}': LaunchConfiguration(f'y_pose_{i}') for i in range(1, 21)},
+            **{f'yaw_pose_{i}': LaunchConfiguration(f'yaw_pose_{i}') for i in range(1, 21)},
+        })
         
         return [IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -325,7 +345,8 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'num_robots': num_robots,
-            'angular_vel': 0.1,  # Faster rotation for quicker convergence (rad/s)
+            'angular_vel': 0.25,  # Faster rotation for quicker convergence (rad/s)
+            'flip_period': 15.0,  # Seconds before reversing direction
             'use_sim_time': use_sim_time,
         }],
     )
@@ -382,9 +403,14 @@ def generate_launch_description():
         description='Randomize AMCL initial pose per robot'
     ))
     ld.add_action(DeclareLaunchArgument(
+        'gt_spawn_radius',
+        default_value='2.2',
+        description='Max ground-truth spawn radius around origin (meters)'
+    ))
+    ld.add_action(DeclareLaunchArgument(
         'spawn_radius',
-        default_value='2.0',
-        description='Half-width of square around origin for random pose'
+        default_value='1.0',
+        description='Max AMCL randomization radius from spawn pose (meters)'
     ))
     ld.add_action(DeclareLaunchArgument(
         'random_seed',
