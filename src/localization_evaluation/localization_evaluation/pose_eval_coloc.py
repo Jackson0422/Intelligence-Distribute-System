@@ -12,6 +12,8 @@ Author: Distributed Intelligent Systems Course
 
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
+from rclpy.exceptions import ParameterAlreadyDeclaredException
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Pose
 import math
@@ -31,18 +33,33 @@ class PoseEvalColoc(Node):
     def __init__(self):
         super().__init__('pose_eval_coloc')
         
-        # Declare parameter: number of robots (default 2, supports 2-4)
-        self.declare_parameter('num_robots', 2)
-        self.num_robots = self.get_parameter('num_robots').value
-        
-        # Validate parameter range
-        if self.num_robots < 2 or self.num_robots > 4:
-            self.get_logger().error(f'num_robots parameter must be between 2-4, current value: {self.num_robots}')
-            self.num_robots = 2  # Use default value
-        
-        # Create result directory
-        self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.result_dir = os.path.expanduser('~/ids_roswk/evaluation_results/multibot/coloc')
+        # Declare parameters (tolerate pre-declared use_sim_time)
+        self.declare_parameter('num_robots', 4)
+        try:
+            self.declare_parameter('use_sim_time', True)
+        except ParameterAlreadyDeclaredException:
+            pass
+        self.declare_parameter('result_dir', '')
+
+        self.num_robots = int(self.get_parameter('num_robots').value)
+        self.use_sim_time = bool(self.get_parameter('use_sim_time').value)
+        self.set_parameters([Parameter('use_sim_time', Parameter.Type.BOOL, self.use_sim_time)])
+
+        # Validate parameter range (supports up to 20)
+        if self.num_robots < 2 or self.num_robots > 20:
+            self.get_logger().warning(f'num_robots parameter expected 2-20, got {self.num_robots}; using 2')
+            self.num_robots = 2
+
+        # Create result directory (defaults to package share logs/evaluation_results)
+        default_dir = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'logs',
+            'evaluation_results',
+            'multibot',
+            'coloc'
+        )
+        configured_dir = self.get_parameter('result_dir').value
+        self.result_dir = configured_dir if configured_dir else default_dir
         os.makedirs(self.result_dir, exist_ok=True)
         
         self.get_logger().info('=' * 80)
@@ -51,7 +68,7 @@ class PoseEvalColoc(Node):
         self.get_logger().info('=' * 80)
         
         # Robot ID list
-        self.robot_ids = ['tb3_1', 'tb3_2', 'tb3_3', 'tb3_4'][:self.num_robots]
+        self.robot_ids = [f'tb3_{i}' for i in range(1, self.num_robots + 1)]
         
         # Dynamically create robot data dictionary
         self.robot_data = {}
@@ -70,14 +87,9 @@ class PoseEvalColoc(Node):
         self.coloc_subs = []
         
         for robot_id in self.robot_ids:
-            # Subscribe to ground truth (odom)
-            if robot_id == 'tb3_1':
-                odom_topic = '/odom'
-                coloc_topic = '/coloc_pose'
-            else:
-                odom_topic = f'/{robot_id}/odom'
-                coloc_topic = f'/{robot_id}/coloc_pose'
-            
+            odom_topic = f'/{robot_id}/odom'
+            coloc_topic = f'/{robot_id}/coloc_pose'
+
             # Use lambda to create callback with default parameter to capture robot_id
             odom_sub = self.create_subscription(
                 Odometry,

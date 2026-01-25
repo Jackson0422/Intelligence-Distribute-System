@@ -113,7 +113,7 @@ Visualization Manager:
       Axes Radius: 0.02
       Shape: Axes
       Value: true
-    - Class: rviz_default_plugins/Pose
+    - Class: rviz_default_plugins/PoseWithCovariance
       Enabled: true
       Name: tb3_1_amcl
       Topic:
@@ -122,8 +122,23 @@ Visualization Manager:
         History Policy: KeepLast
         Reliability Policy: Reliable
         Value: /tb3_1/amcl_pose
+      Alpha: 1
       Axes Length: 0.25
       Axes Radius: 0.02
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 204; 51; 204
+          Scale: 1
+          Value: true
+        Value: true
       Shape: Axes
       Value: true
     - Class: rviz_default_plugins/Pose
@@ -152,7 +167,7 @@ Visualization Manager:
       Axes Radius: 0.02
       Shape: Axes
       Value: true
-    - Class: rviz_default_plugins/Pose
+    - Class: rviz_default_plugins/PoseWithCovariance
       Enabled: true
       Name: tb3_2_amcl
       Topic:
@@ -161,8 +176,23 @@ Visualization Manager:
         History Policy: KeepLast
         Reliability Policy: Reliable
         Value: /tb3_2/amcl_pose
+      Alpha: 1
       Axes Length: 0.25
       Axes Radius: 0.02
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 204; 51; 204
+          Scale: 1
+          Value: true
+        Value: true
       Shape: Axes
       Value: true
     - Class: rviz_default_plugins/Pose
@@ -191,7 +221,7 @@ Visualization Manager:
       Axes Radius: 0.02
       Shape: Axes
       Value: true
-    - Class: rviz_default_plugins/Pose
+    - Class: rviz_default_plugins/PoseWithCovariance
       Enabled: true
       Name: tb3_3_amcl
       Topic:
@@ -200,8 +230,23 @@ Visualization Manager:
         History Policy: KeepLast
         Reliability Policy: Reliable
         Value: /tb3_3/amcl_pose
+      Alpha: 1
       Axes Length: 0.25
       Axes Radius: 0.02
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 204; 51; 204
+          Scale: 1
+          Value: true
+        Value: true
       Shape: Axes
       Value: true
     - Class: rviz_default_plugins/Pose
@@ -230,7 +275,7 @@ Visualization Manager:
       Axes Radius: 0.02
       Shape: Axes
       Value: true
-    - Class: rviz_default_plugins/Pose
+    - Class: rviz_default_plugins/PoseWithCovariance
       Enabled: true
       Name: tb3_4_amcl
       Topic:
@@ -239,8 +284,23 @@ Visualization Manager:
         History Policy: KeepLast
         Reliability Policy: Reliable
         Value: /tb3_4/amcl_pose
+      Alpha: 1
       Axes Length: 0.25
       Axes Radius: 0.02
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.3
+          Color: 204; 51; 204
+          Scale: 1
+          Value: true
+        Value: true
       Shape: Axes
       Value: true
     - Class: rviz_default_plugins/Pose
@@ -268,6 +328,18 @@ Visualization Manager:
         tb3_6: true
         tb3_7: true
         tb3_8: true
+        tb3_9: true
+        tb3_10: true
+        tb3_11: true
+        tb3_12: true
+        tb3_13: true
+        tb3_14: true
+        tb3_15: true
+        tb3_16: true
+        tb3_17: true
+        tb3_18: true
+        tb3_19: true
+        tb3_20: true
       Topic:
         Depth: 1
         Durability Policy: Volatile

@@ -33,6 +33,8 @@ setup(
             'decentralized_coloc_agent = localization_evaluation.decentralized_coloc_agent:main',
             'pose_eval_coloc = localization_evaluation.pose_eval_coloc:main',
             'ground_truth_logger = localization_evaluation.ground_truth_logger:main',
+            'jitter_motion = localization_evaluation.jitter_motion:main',
+            'odom_noise_injector = localization_evaluation.odom_noise_injector:main',
         ],
     },
 )

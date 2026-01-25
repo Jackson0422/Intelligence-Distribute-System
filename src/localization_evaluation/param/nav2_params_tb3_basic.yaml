@@ -1,10 +1,11 @@
 amcl:
   ros__parameters:
-    alpha1: 0.2
-    alpha2: 0.2
-    alpha3: 0.2
-    alpha4: 0.2
-    alpha5: 0.2
+    # Motion model noise parameters - very low = high confidence in odometry
+    alpha1: 0.005   # rotation noise from rotation - very low for simulation
+    alpha2: 0.005   # rotation noise from translation
+    alpha3: 0.01    # translation noise from translation
+    alpha4: 0.005   # translation noise from rotation
+    alpha5: 0.005   # strafe noise
     base_frame_id: "base_footprint"
     beam_skip_distance: 0.5
     beam_skip_error_threshold: 0.9
@@ -16,9 +17,9 @@ amcl:
     laser_max_range: 100.0
     laser_min_range: -1.0
     laser_model_type: "likelihood_field"
-    max_beams: 60
-    max_particles: 2000
-    min_particles: 500
+    max_beams: 180              # Use most of laser scan (360/2)
+    max_particles: 3000         # Maximum particle count
+    min_particles: 500          # Minimum particle count
     odom_frame_id: "odom"
     pf_err: 0.05
     pf_z: 0.99
@@ -27,15 +28,16 @@ amcl:
     resample_interval: 1
     robot_model_type: "nav2_amcl::DifferentialMotionModel"
     save_pose_rate: 0.5
-    sigma_hit: 0.2
+    sigma_hit: 0.1              # Very tight sensor model
     tf_broadcast: true
-    transform_tolerance: 0.5
-    update_min_a: 0.002
-    update_min_d: 0.05
-    z_hit: 0.5
+    transform_tolerance: 2.0    # Lenient for sim time synchronization
+    update_min_a: 0.0           # STATIC CONVERGENCE: Update without rotation
+    update_min_d: 0.0           # STATIC CONVERGENCE: Update without translation
+    force_update: true          # Force update on every scan even without motion
+    z_hit: 0.9                  # Trust laser hits heavily
     z_max: 0.05
-    z_rand: 0.5
-    z_short: 0.05
+    z_rand: 0.05                # Very little random noise
+    z_short: 0.0
     scan_topic: scan
     map_topic: map
     set_initial_pose: true

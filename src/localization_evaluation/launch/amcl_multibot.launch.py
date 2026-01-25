@@ -130,8 +130,11 @@ def generate_launch_description():
                     pose_overrides.get(f'yaw_pose_{robot_idx}', LaunchConfiguration('', default='')).perform(context),
                 )
 
+                print(f"[amcl_multibot] {robot_name}: overrides={overrides}, randomize={randomize_pose}")
+                
                 initial_pose = None
                 if overrides[0] != '' and overrides[1] != '' and overrides[2] != '':
+                    print(f"[amcl_multibot] {robot_name}: Using OVERRIDE pose x={overrides[0]}, y={overrides[1]}")
                     initial_pose = {
                         'x': float(overrides[0]),
                         'y': float(overrides[1]),
@@ -141,16 +144,54 @@ def generate_launch_description():
                 else:
                     initial_pose = _load_robot_initial_pose(robot_name, pkg_localization_eval)
                     if randomize_pose:
+                        # Set initial pose FARTHER from true position to demonstrate convergence
+                        wrong_x = rng.uniform(-2.5, 2.5)  # Up to 2.5m error
+                        wrong_y = rng.uniform(-2.5, 2.5)
+                        wrong_yaw = rng.uniform(-3.14, 3.14)  # Full rotation uncertainty
                         initial_pose = {
-                            'x': rng.uniform(-spread, spread),
-                            'y': rng.uniform(-spread, spread),
+                            'x': wrong_x,
+                            'y': wrong_y,
                             'z': 0.0,
-                            'yaw': rng.uniform(-3.14, 3.14),
+                            'yaw': wrong_yaw,
                         }
+                        print(f"[amcl_multibot] {robot_name}: FAR WRONG pose x={wrong_x:.2f}, y={wrong_y:.2f}, yaw={wrong_yaw:.2f}")
                     elif not initial_pose:
                         initial_pose = base_params.get('initial_pose', {})
-                if initial_pose:
+                
+                # When randomizing, use LARGE covariance for wide particle spread
+                if randomize_pose:
+                    # Large covariance so particles explore widely before converging
+                    amcl_params['set_initial_pose'] = True
+                    amcl_params['always_reset_initial_pose'] = False
+                    # LARGE covariance - particles spread over ~10m diameter initially
+                    amcl_params['initial_cov_xx'] = 9.0     # 3m std dev
+                    amcl_params['initial_cov_yy'] = 9.0     # 3m std dev
+                    amcl_params['initial_cov_aa'] = 3.14    # ~180 deg std dev
+                    # Adaptive particle count with minimum 500, maximum 3000
+                    amcl_params['max_particles'] = 3000     # Maximum particles for wide search
+                    amcl_params['min_particles'] = 500      # Minimum particles to maintain
+                    # Force updates on every scan
+                    amcl_params['update_min_d'] = 0.0
+                    amcl_params['update_min_a'] = 0.0
+                    amcl_params['resample_interval'] = 1    # Resample every update for faster convergence
+                    # KLD sampling - set pf_err very high to keep particle count fixed
+                    amcl_params['pf_err'] = 0.99            # Very loose - effectively disables KLD collapse
+                    amcl_params['pf_z'] = 0.99
+                    # Aggressive sensor model for fast convergence with limited particles
+                    amcl_params['z_hit'] = 0.98             # Very high weight on accurate measurements
+                    amcl_params['z_rand'] = 0.02            # Low random noise
+                    amcl_params['sigma_hit'] = 0.05         # Tighter sensor noise model
+                    amcl_params['laser_likelihood_max_dist'] = 3.0  # Wider search range
+                    # Aggressive recovery to continuously add random particles
+                    amcl_params['recovery_alpha_slow'] = 0.005      # Add random particles more aggressively
+                    amcl_params['recovery_alpha_fast'] = 0.15       # Fast recovery from wrong estimates
+                    # TF timing tolerance for simulation
+                    amcl_params['transform_tolerance'] = 2.0        # Lenient timing for sim time synchronization
+                    print(f"[amcl_multibot] {robot_name}: Adaptive particles min=500, max=3000 - wide search with KLD sampling")
+                    
+                # Set initial_pose in params
                     amcl_params['initial_pose'] = initial_pose
+                
                 params_source = amcl_params
             else:
                 candidate = os.path.join(
@@ -211,7 +252,7 @@ def generate_launch_description():
     ))
     ld.add_action(DeclareLaunchArgument(
         'map',
-        default_value=os.path.join(pkg_localization_eval, 'maps', 'empty_map.yaml'),
+        default_value=os.path.join(pkg_localization_eval, 'maps', 'turtle_world.yaml'),
         description='Full path to map yaml file'
     ))
     ld.add_action(DeclareLaunchArgument(

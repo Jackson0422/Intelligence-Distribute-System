@@ -20,19 +20,17 @@ Author: Distributed Intelligent Systems Course
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    
     # Declare launch arguments
     declare_num_robots = DeclareLaunchArgument(
         'num_robots',
-        default_value='2',
-        description='Number of robots for collaborative localization (2-4)'
+        default_value='4',
+        description='Number of robots for collaborative localization (supports 2-20)'
     )
     
     declare_gossip_rate = DeclareLaunchArgument(
@@ -66,95 +64,34 @@ def generate_launch_description():
     peer_timeout = LaunchConfiguration('peer_timeout')
     correction_threshold = LaunchConfiguration('correction_threshold')
     
-    # Collaborative Localization Agent - tb3_1
-    agent_tb3_1 = Node(
-        package='localization_evaluation',
-        executable='decentralized_coloc_agent',
-        name='coloc_agent_tb3_1',
-        output='screen',
-        parameters=[{
-            # Use Gazebo simulation time to ensure consistency with AMCL/TF timestamps
-            'use_sim_time': True,
-            'robot_id': 'tb3_1',
-            'peer_ids': ['tb3_2', 'tb3_3', 'tb3_4'],  # Includes all other robots
-            'gossip_rate': gossip_rate,
-            'self_weight': self_weight,
-            'peer_timeout': peer_timeout,
-            'correction_threshold': correction_threshold
-        }],
-        remappings=[
-            # Ensure correct TF topics
-            ('/tf', '/tf'),
-            ('/tf_static', '/tf_static')
-        ]
-    )
-    
-    # Collaborative Localization Agent - tb3_2
-    agent_tb3_2 = Node(
-        package='localization_evaluation',
-        executable='decentralized_coloc_agent',
-        name='coloc_agent_tb3_2',
-        output='screen',
-        parameters=[{
-            # Use Gazebo simulation time to ensure consistency with AMCL/TF timestamps
-            'use_sim_time': True,
-            'robot_id': 'tb3_2',
-            'peer_ids': ['tb3_1', 'tb3_3', 'tb3_4'],  # Includes all other robots
-            'gossip_rate': gossip_rate,
-            'self_weight': self_weight,
-            'peer_timeout': peer_timeout,
-            'correction_threshold': correction_threshold
-        }],
-        remappings=[
-            ('/tf', '/tf'),
-            ('/tf_static', '/tf_static')
-        ]
-    )
-    
-    # Collaborative Localization Agent - tb3_3 (Added)
-    agent_tb3_3 = Node(
-        package='localization_evaluation',
-        executable='decentralized_coloc_agent',
-        name='coloc_agent_tb3_3',
-        output='screen',
-        parameters=[{
-            'use_sim_time': True,
-            'robot_id': 'tb3_3',
-            'peer_ids': ['tb3_1', 'tb3_2', 'tb3_4'],
-            'gossip_rate': gossip_rate,
-            'self_weight': self_weight,
-            'peer_timeout': peer_timeout,
-            'correction_threshold': correction_threshold
-        }],
-        remappings=[
-            ('/tf', '/tf'),
-            ('/tf_static', '/tf_static')
-        ],
-        condition=IfCondition(PythonExpression([num_robots, ' >= 3']))
-    )
-    
-    # Collaborative Localization Agent - tb3_4 (Added)
-    agent_tb3_4 = Node(
-        package='localization_evaluation',
-        executable='decentralized_coloc_agent',
-        name='coloc_agent_tb3_4',
-        output='screen',
-        parameters=[{
-            'use_sim_time': True,
-            'robot_id': 'tb3_4',
-            'peer_ids': ['tb3_1', 'tb3_2', 'tb3_3'],
-            'gossip_rate': gossip_rate,
-            'self_weight': self_weight,
-            'peer_timeout': peer_timeout,
-            'correction_threshold': correction_threshold
-        }],
-        remappings=[
-            ('/tf', '/tf'),
-            ('/tf_static', '/tf_static')
-        ],
-        condition=IfCondition(PythonExpression([num_robots, ' >= 4']))
-    )
-    
+    # Build coloc agent nodes dynamically
+    def build_agents(context):
+        count = int(num_robots.perform(context))
+        actions = []
+        ids = [f'tb3_{i}' for i in range(1, count + 1)]
+        for rid in ids:
+            peers = [p for p in ids if p != rid]
+            actions.append(Node(
+                package='localization_evaluation',
+                executable='decentralized_coloc_agent',
+                name=f'coloc_agent_{rid}',
+                output='screen',
+                parameters=[{
+                    'use_sim_time': True,
+                    'robot_id': rid,
+                    'peer_ids': peers,
+                    'gossip_rate': gossip_rate,
+                    'self_weight': self_weight,
+                    'peer_timeout': peer_timeout,
+                    'correction_threshold': correction_threshold
+                }],
+                remappings=[
+                    ('/tf', '/tf'),
+                    ('/tf_static', '/tf_static')
+                ]
+            ))
+        return actions
+
     # Build launch description
     ld = LaunchDescription()
     
@@ -164,11 +101,7 @@ def generate_launch_description():
     ld.add_action(declare_self_weight)
     ld.add_action(declare_peer_timeout)
     ld.add_action(declare_correction_threshold)
-    
-    # Add nodes
-    ld.add_action(agent_tb3_1)
-    ld.add_action(agent_tb3_2)
-    ld.add_action(agent_tb3_3)  # Added
-    ld.add_action(agent_tb3_4)  # Added
+
+    ld.add_action(OpaqueFunction(function=build_agents))
     
     return ld

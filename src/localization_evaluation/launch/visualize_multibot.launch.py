@@ -23,23 +23,27 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     pkg_localization_eval = get_package_share_directory('localization_evaluation')
-    pkg_nav2_bringup = get_package_share_directory('nav2_bringup')
+    _ = get_package_share_directory('nav2_bringup')
 
     use_sim_time = LaunchConfiguration('use_sim_time')
     num_robots = LaunchConfiguration('num_robots')
     map_yaml_file = LaunchConfiguration('map')
+    world_file = LaunchConfiguration('world')
     autostart = LaunchConfiguration('autostart')
     use_shared_params = LaunchConfiguration('use_shared_params')
     shared_params_file = LaunchConfiguration('shared_params_file')
     randomize_initial_pose = LaunchConfiguration('randomize_initial_pose')
     spawn_radius = LaunchConfiguration('spawn_radius')
-    random_seed = LaunchConfiguration('random_seed')
+    _ = LaunchConfiguration('random_seed')
     rviz_config = LaunchConfiguration('rviz_config')
     log_ground_truth = LaunchConfiguration('log_ground_truth')
     log_dir = os.path.join(pkg_localization_eval, 'logs')
     resolved_seed = LaunchConfiguration('resolved_seed')
 
     def resolve_map_and_seed(context, *args, **kwargs):
+        # Get the actual value of randomize_initial_pose from launch configuration
+        randomize_amcl_pose = randomize_initial_pose.perform(context).lower() == 'true'
+        
         # Resolve map aliases to full paths
         map_arg = map_yaml_file.perform(context)
         alias_map = {
@@ -49,6 +53,29 @@ def generate_launch_description():
             'turtle_world_big': os.path.join(pkg_localization_eval, 'maps', 'turtle_world_big.yaml'),
         }
         map_resolved = alias_map.get(map_arg, map_arg)
+        if map_resolved == map_arg and not os.path.isabs(map_arg):
+            candidate = os.path.join(pkg_localization_eval, 'maps', map_arg)
+            map_resolved = candidate if os.path.exists(candidate) else map_arg
+
+        # Resolve world aliases similarly
+        world_arg = world_file.perform(context)
+        world_alias = {
+            'empty_world': os.path.join(pkg_localization_eval, 'worlds', 'empty.world'),
+            'turtle_world': os.path.join(
+                get_package_share_directory('turtlebot3_gazebo'),
+                'worlds',
+                'turtlebot3_world.world'
+            ),
+            'turtle_world_big': os.path.join(
+                pkg_localization_eval,
+                'worlds',
+                'turtlebot3_world_big.world'
+            ),
+        }
+        world_resolved = world_alias.get(world_arg, world_arg)
+        if world_resolved == world_arg and not os.path.isabs(world_arg):
+            candidate = os.path.join(pkg_localization_eval, 'worlds', world_arg)
+            world_resolved = candidate if os.path.exists(candidate) else world_arg
 
         # Resolve seed
         seed_val = LaunchConfiguration('random_seed').perform(context)
@@ -58,6 +85,11 @@ def generate_launch_description():
         radius = float(LaunchConfiguration('spawn_radius').perform(context))
         sample_free = LaunchConfiguration('sample_free_space').perform(context).lower() == 'true'
         max_robots = int(LaunchConfiguration('num_robots').perform(context))
+        max_radius = 2.15  # hard cap on distance to keep spawns near map center
+        max_radius_sq = max_radius * max_radius
+        obstacle_clearance = 0.2  # meters away from obstacles
+        min_robot_spacing = 0.4  # meters between robot centers
+        min_robot_spacing_sq = min_robot_spacing * min_robot_spacing
         poses = []
 
         def read_pgm(pgm_path):
@@ -87,32 +119,120 @@ def generate_launch_description():
                 img, maxval, width, height = read_pgm(pgm_path)
                 import numpy as np
                 free_mask = img > int(free_thresh * maxval)
+                edge_margin = max(1, int(0.5 / res))  # keep spawns ~0.5m from map edges
+                free_mask[:edge_margin, :] = False
+                free_mask[-edge_margin:, :] = False
+                free_mask[:, :edge_margin] = False
+                free_mask[:, -edge_margin:] = False
+
+                # Constrain to the occupied-area bounding box (plus margin) to avoid far-out padding
+                occ_thresh = 0.65
+                occ_mask = img <= int(occ_thresh * maxval)
+                occ_indices = np.argwhere(occ_mask)
+                if len(occ_indices) > 0:
+                    r_min, c_min = occ_indices.min(axis=0)
+                    r_max, c_max = occ_indices.max(axis=0)
+                    bbox_margin = 0  # only occupied region, no expansion
+                    r_min = max(0, r_min - bbox_margin)
+                    c_min = max(0, c_min - bbox_margin)
+                    r_max = min(height - 1, r_max + bbox_margin)
+                    c_max = min(width - 1, c_max + bbox_margin)
+                    bbox_mask = np.zeros_like(free_mask, dtype=bool)
+                    bbox_mask[r_min:r_max + 1, c_min:c_max + 1] = True
+                    free_mask &= bbox_mask
+
+                # Enforce obstacle clearance by removing free cells too close to occupied cells
+                clearance_cells = max(1, int(math.ceil(obstacle_clearance / res)))
+                try:
+                    from numpy.lib.stride_tricks import sliding_window_view
+                    window = sliding_window_view(occ_mask, (2 * clearance_cells + 1, 2 * clearance_cells + 1))
+                    near_occ = window.any(axis=(2, 3))
+                    pad = clearance_cells
+                    near_padded = np.pad(near_occ, pad_width=pad, mode='constant', constant_values=False)
+                    free_mask &= ~near_padded[:height, :width]
+                except Exception:
+                    # Fallback: simple dilation-like padding
+                    dilated = occ_mask.copy()
+                    for dr in range(-clearance_cells, clearance_cells + 1):
+                        for dc in range(-clearance_cells, clearance_cells + 1):
+                            if dr == 0 and dc == 0:
+                                continue
+                            shifted = np.zeros_like(occ_mask)
+                            rs = slice(max(0, dr), height + min(0, dr))
+                            cs = slice(max(0, dc), width + min(0, dc))
+                            r_src = slice(max(0, -dr), height - max(0, dr))
+                            c_src = slice(max(0, -dc), width - max(0, dc))
+                            shifted[rs, cs] = occ_mask[r_src, c_src]
+                            dilated |= shifted
+                    free_mask &= ~dilated
+
                 free_indices = np.argwhere(free_mask)
                 if len(free_indices) == 0:
                     raise RuntimeError('No free cells found in map')
-                for _ in range(max_robots):
-                    r, c = free_indices[rng.randrange(len(free_indices))]
+
+                # Precompute world positions and keep only those inside the radius cap
+                filtered_positions = []
+                for r, c in free_indices:
                     x = origin[0] + (c + 0.5) * res
                     y = origin[1] + (height - r - 0.5) * res
-                    poses.append((x, y, rng.uniform(-math.pi, math.pi)))
+                    if x * x + y * y <= max_radius_sq:
+                        filtered_positions.append((x, y))
+
+                # Fallback to all free cells if the radius filter removed everything
+                usable_positions = filtered_positions or [
+                    (origin[0] + (c + 0.5) * res, origin[1] + (height - r - 0.5) * res)
+                    for r, c in free_indices
+                ]
+
+                chosen_positions = []
+                for _ in range(max_robots):
+                    placed = False
+                    for _ in range(200):
+                        x, y = usable_positions[rng.randrange(len(usable_positions))]
+                        if all((x - px) ** 2 + (y - py) ** 2 >= min_robot_spacing_sq for px, py in chosen_positions):
+                            chosen_positions.append((x, y))
+                            poses.append((x, y, rng.uniform(-math.pi, math.pi)))
+                            placed = True
+                            break
+                    if not placed:
+                        # If spacing fails, fall back to center
+                        poses.append((0.0, 0.0, rng.uniform(-math.pi, math.pi)))
             except Exception as e:
                 print(f'[visualize_multibot] Free-space sampling failed: {e}, falling back to box sampling')
+                limited_radius = min(radius, max_radius)
+                chosen_positions = []
                 for _ in range(max_robots):
-                    poses.append((
-                        rng.uniform(-radius, radius),
-                        rng.uniform(-radius, radius),
-                        rng.uniform(-math.pi, math.pi),
-                    ))
+                    for _ in range(50):
+                        x = rng.uniform(-limited_radius, limited_radius)
+                        y = rng.uniform(-limited_radius, limited_radius)
+                        if x * x + y * y <= max_radius_sq and all(
+                            (x - px) ** 2 + (y - py) ** 2 >= min_robot_spacing_sq for px, py in chosen_positions
+                        ):
+                            chosen_positions.append((x, y))
+                            break
+                    else:
+                        x, y = 0.0, 0.0
+                    poses.append((x, y, rng.uniform(-math.pi, math.pi)))
         else:
+            limited_radius = min(radius, max_radius)
+            chosen_positions = []
             for _ in range(max_robots):
-                poses.append((
-                    rng.uniform(-radius, radius),
-                    rng.uniform(-radius, radius),
-                    rng.uniform(-math.pi, math.pi),
-                ))
+                for _ in range(50):
+                    x = rng.uniform(-limited_radius, limited_radius)
+                    y = rng.uniform(-limited_radius, limited_radius)
+                    if x * x + y * y <= max_radius_sq and all(
+                        (x - px) ** 2 + (y - py) ** 2 >= min_robot_spacing_sq for px, py in chosen_positions
+                    ):
+                        chosen_positions.append((x, y))
+                        break
+                else:
+                    x, y = 0.0, 0.0
+                poses.append((x, y, rng.uniform(-math.pi, math.pi)))
         actions = [
             SetLaunchConfiguration('resolved_seed', seed_val),
             SetLaunchConfiguration('resolved_map', map_resolved),
+            SetLaunchConfiguration('resolved_world', world_resolved),
+            SetLaunchConfiguration('randomize_amcl_internal', str(randomize_amcl_pose)),
         ]
         for idx, (xv, yv, yawv) in enumerate(poses, start=1):
             actions.extend([
@@ -132,17 +252,20 @@ def generate_launch_description():
             'randomize_spawn': LaunchConfiguration('randomize_spawn'),
             'spawn_radius': LaunchConfiguration('spawn_radius'),
             'random_seed': resolved_seed,
+            'world': LaunchConfiguration('resolved_world'),
             **{f'x_pose_{i}': LaunchConfiguration(f'x_pose_{i}') for i in range(1, 21)},
             **{f'y_pose_{i}': LaunchConfiguration(f'y_pose_{i}') for i in range(1, 21)},
             **{f'yaw_pose_{i}': LaunchConfiguration(f'yaw_pose_{i}') for i in range(1, 21)},
         }.items(),
     )
 
-    amcl_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_localization_eval, 'launch', 'amcl_multibot.launch.py')
-        ),
-        launch_arguments={
+    def build_amcl_launch(context, *args, **kwargs):
+        # When randomize_initial_pose is true, don't pass pose overrides to AMCL
+        # so it can generate its own wrong initial poses
+        randomize_amcl = LaunchConfiguration('randomize_amcl_internal').perform(context).lower() == 'true'
+        
+        # Build base arguments that are always passed
+        base_args = {
             'use_sim_time': use_sim_time,
             'num_robots': num_robots,
             'map': LaunchConfiguration('resolved_map'),
@@ -152,20 +275,33 @@ def generate_launch_description():
             'randomize_initial_pose': randomize_initial_pose,
             'spawn_radius': spawn_radius,
             'random_seed': resolved_seed,
-            'x_pose_1': LaunchConfiguration('x_pose_1'),
-            'y_pose_1': LaunchConfiguration('y_pose_1'),
-            'yaw_pose_1': LaunchConfiguration('yaw_pose_1'),
-            'x_pose_2': LaunchConfiguration('x_pose_2'),
-            'y_pose_2': LaunchConfiguration('y_pose_2'),
-            'yaw_pose_2': LaunchConfiguration('yaw_pose_2'),
-            'x_pose_3': LaunchConfiguration('x_pose_3'),
-            'y_pose_3': LaunchConfiguration('y_pose_3'),
-            'yaw_pose_3': LaunchConfiguration('yaw_pose_3'),
-            'x_pose_4': LaunchConfiguration('x_pose_4'),
-            'y_pose_4': LaunchConfiguration('y_pose_4'),
-            'yaw_pose_4': LaunchConfiguration('yaw_pose_4'),
-        }.items(),
-    )
+        }
+        
+        if randomize_amcl:
+            # Pass EXPLICIT EMPTY STRINGS to ensure pose overrides are ignored
+            print(f"[visualize_multibot] AMCL randomization ENABLED - passing empty pose overrides")
+            base_args.update({
+                **{f'x_pose_{i}': '' for i in range(1, 21)},
+                **{f'y_pose_{i}': '' for i in range(1, 21)},
+                **{f'yaw_pose_{i}': '' for i in range(1, 21)},
+            })
+        else:
+            # Pass the actual spawn poses to AMCL for exact initialization
+            print(f"[visualize_multibot] AMCL randomization DISABLED - passing actual spawn poses")
+            base_args.update({
+                **{f'x_pose_{i}': LaunchConfiguration(f'x_pose_{i}') for i in range(1, 21)},
+                **{f'y_pose_{i}': LaunchConfiguration(f'y_pose_{i}') for i in range(1, 21)},
+                **{f'yaw_pose_{i}': LaunchConfiguration(f'yaw_pose_{i}') for i in range(1, 21)},
+            })
+        
+        return [IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(pkg_localization_eval, 'launch', 'amcl_multibot.launch.py')
+            ),
+            launch_arguments=base_args.items(),
+        )]
+    
+    amcl_launch = OpaqueFunction(function=build_amcl_launch)
 
     gt_logger = Node(
         package='localization_evaluation',
@@ -173,11 +309,25 @@ def generate_launch_description():
         name='ground_truth_logger',
         output='screen',
         parameters=[{
-            'robot_names': ['tb3_1', 'tb3_2', 'tb3_3', 'tb3_4'],
+            'robot_names': [f'tb3_{i}' for i in range(1, 21)],
+            'use_sim_time': use_sim_time,
             'log_enabled': log_ground_truth,
             'log_dir': log_dir,
         }],
         condition=None,
+    )
+
+    # Jitter motion node - provides tiny rotation to trigger AMCL updates
+    jitter_node = Node(
+        package='localization_evaluation',
+        executable='jitter_motion',
+        name='jitter_motion',
+        output='screen',
+        parameters=[{
+            'num_robots': num_robots,
+            'angular_vel': 0.1,  # Faster rotation for quicker convergence (rad/s)
+            'use_sim_time': use_sim_time,
+        }],
     )
 
     rviz_node = Node(
@@ -200,11 +350,21 @@ def generate_launch_description():
     ))
     ld.add_action(DeclareLaunchArgument(
         'map',
-        default_value='turtle_world_big',
+        default_value='turtle_world',
         description='Map alias (empty_map, square_walls_map, turtle_world, turtle_world_big) or full YAML path'
     ))
     ld.add_action(DeclareLaunchArgument(
+        'world',
+        default_value='turtle_world',
+        description='World alias (empty_world, turtle_world) or full world path'
+    ))
+    ld.add_action(DeclareLaunchArgument(
         'autostart', default_value='true', description='Autostart Nav2 lifecycle nodes'
+    ))
+    ld.add_action(DeclareLaunchArgument(
+        'randomize_spawn',
+        default_value='true',
+        description='Randomize Gazebo spawn pose per robot'
     ))
     ld.add_action(DeclareLaunchArgument(
         'use_shared_params',
@@ -231,16 +391,19 @@ def generate_launch_description():
         default_value='auto',
         description='Seed for pose randomization (int or "auto")'
     ))
-    for name, default in [
-        ('x_pose_1', ''), ('y_pose_1', ''), ('yaw_pose_1', ''),
-        ('x_pose_2', ''), ('y_pose_2', ''), ('yaw_pose_2', ''),
-        ('x_pose_3', ''), ('y_pose_3', ''), ('yaw_pose_3', ''),
-        ('x_pose_4', ''), ('y_pose_4', ''), ('yaw_pose_4', ''),
-    ]:
-        ld.add_action(DeclareLaunchArgument(
-            name, default_value=default,
-            description=f'Override {name.split("_")[0]} {name.split("_")[1]}'
-        ))
+    ld.add_action(DeclareLaunchArgument(
+        'sample_free_space',
+        default_value='true',
+        description='Sample robot spawns from free space in the map (requires map PGM/YAML)'
+    ))
+    for idx in range(1, 21):
+        for axis in ['x', 'y', 'yaw']:
+            name = f'{axis}_pose_{idx}'
+            ld.add_action(DeclareLaunchArgument(
+                name,
+                default_value='',
+                description=f'Override {axis} pose for robot {idx}'
+            ))
     ld.add_action(DeclareLaunchArgument(
         'rviz_config',
         default_value=os.path.join(pkg_localization_eval, 'rviz', 'multibot_view.rviz'),
@@ -257,6 +420,7 @@ def generate_launch_description():
     ld.add_action(TimerAction(period=0.0, actions=[gazebo_launch]))
     ld.add_action(TimerAction(period=2.0, actions=[amcl_launch]))
     ld.add_action(TimerAction(period=3.0, actions=[gt_logger]))
+    ld.add_action(TimerAction(period=3.5, actions=[jitter_node]))  # Start jitter after GT logger
     ld.add_action(TimerAction(period=4.0, actions=[rviz_node]))
 
     return ld

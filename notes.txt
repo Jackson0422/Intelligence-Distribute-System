@@ -1,0 +1,3 @@
+
+
+ros2 launch localization_evaluation visualize_multibot.launch.py   map:=empty_map   sample_free_space:=true   num_robots:=6   random_seed:=auto   randomize_spawn:=true world:=empty_world
